@@ -1,0 +1,8 @@
+name: restonks
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - pandas
+  - pyside6>=6.9.0
+  - python>=3.12.0
