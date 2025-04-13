@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "restonks"
+version = "0.1"
+dependencies = [
+  "pandas",
+  "tradernet-sdk"
+]
+authors = [
+  {name = "Constantinos Menelaou", email = "konmenel@gmail.com"},
+]
+readme = "README.md"
+description  = "The tool for rebalancing your Freedom24 portfolio."
+license-files = ["LICEN[CS]E*"]
+
+[project.scripts]
+restonks = "main:main"
