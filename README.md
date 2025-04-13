@@ -15,7 +15,7 @@ pip install .
 
 ## Usage
 ```bash
-restonks pyrfotlio [-h] [-w WEIGHTS] [-k API_KEY] <investment_amount>
+restonks [-h] [-w WEIGHTS] [-k API_KEY] <investment_amount>
 ```
 
 ## Freedom24 API key
@@ -29,7 +29,7 @@ private  = <private-key>
 ```
 
 ## Weights TOML file
-The target weights are provided using a TOML file. The target weights' sum should never greater than 1, however, the can be less than 1. 
+The target weights are provided using a TOML file. The target weights' sum should never greater than 1, however, the can be less than 1. By default the script looks at the current working directory for a file called "weights.toml". However, the file path can be provided using the `-w` or `--weights` options.
 
 The weights file should have the following format:
 

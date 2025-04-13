@@ -41,7 +41,7 @@ config = Config()
 
 def create_cli() -> ArgumentParser:
     parser = ArgumentParser(
-        "pyrfotlio",
+        "restonks",
         description=(
             "Given the target weights of any ETF or stocks and an investment amount "
             "finds the optimal investements values."
