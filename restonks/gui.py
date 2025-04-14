@@ -9,7 +9,7 @@ class Restonks:
     def __init__(self):
         # Load the .ui file
         base, _ = os.path.split(__file__)
-        ui_file_name = os.path.join(base, "../ui/main.ui")
+        ui_file_name = os.path.join(base, "ui/main.ui")
         ui_file = QFile(ui_file_name)
         ui_file.open(QFile.ReadOnly)
         loader = QUiLoader()
