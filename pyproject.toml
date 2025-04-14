@@ -20,5 +20,8 @@ license-files = ["LICEN[CS]E*"]
 [project.scripts]
 restonks = "cli:main"
 
+[tool.pyside6-project]
+files = ["gui.py"]
+
 # [project.gui-scripts]
 # restonks-guii = "gui:main"
