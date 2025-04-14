@@ -6,6 +6,8 @@ from functools import cache
 
 
 # TODO: Add sell action as option.
+# TODO: ADD dockstrings
+# TODO: Setup MYPY
 
 
 class Config:

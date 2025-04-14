@@ -5,6 +5,13 @@ from PySide6.QtUiTools import QUiLoader
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QFile
 
+# TODO: Add callbacks
+# TODO: Add button to accept the API keys
+# TODO: Add export weights into different file formats
+# TODO: Save last configuration of weights for next session
+# TODO: Create second tab/dock for results
+# TODO: Pull list of securities on startup.
+
 class Restonks:
     def __init__(self):
         # Load the .ui file
