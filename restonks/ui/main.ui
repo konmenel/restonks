@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>762</width>
-    <height>889</height>
+    <width>793</width>
+    <height>884</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,8 +17,8 @@
    <widget class="QSpinBox" name="amountBox">
     <property name="geometry">
      <rect>
-      <x>230</x>
-      <y>10</y>
+      <x>420</x>
+      <y>20</y>
       <width>211</width>
       <height>41</height>
      </rect>
@@ -35,7 +35,7 @@
      <number>50</number>
     </property>
    </widget>
-   <widget class="QTableWidget" name="weightsWidget">
+   <widget class="QTableWidget" name="weightsTable">
     <property name="geometry">
      <rect>
       <x>10</x>
@@ -72,7 +72,7 @@
      </property>
      <property name="font">
       <font>
-       <pointsize>14</pointsize>
+       <pointsize>12</pointsize>
       </font>
      </property>
     </column>
@@ -82,7 +82,7 @@
      </property>
      <property name="font">
       <font>
-       <pointsize>14</pointsize>
+       <pointsize>12</pointsize>
       </font>
      </property>
     </column>
@@ -118,27 +118,35 @@
      <rect>
       <x>40</x>
       <y>10</y>
-      <width>191</width>
+      <width>221</width>
       <height>41</height>
      </rect>
     </property>
     <property name="font">
      <font>
-      <pointsize>14</pointsize>
+      <pointsize>12</pointsize>
      </font>
     </property>
     <property name="text">
-     <string>Add Investment amount ($):</string>
+     <string>Investment amount ($):</string>
     </property>
    </widget>
-   <widget class="QTableWidget" name="weightsWidget_2">
+   <widget class="QTableWidget" name="portfolioTable">
     <property name="geometry">
      <rect>
       <x>10</x>
       <y>310</y>
       <width>741</width>
-      <height>231</height>
+      <height>201</height>
      </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="showGrid">
+     <bool>true</bool>
     </property>
     <property name="rowCount">
      <number>5</number>
@@ -163,7 +171,7 @@
      </property>
      <property name="font">
       <font>
-       <pointsize>14</pointsize>
+       <pointsize>12</pointsize>
       </font>
      </property>
     </column>
@@ -173,7 +181,7 @@
      </property>
      <property name="font">
       <font>
-       <pointsize>14</pointsize>
+       <pointsize>12</pointsize>
       </font>
      </property>
     </column>
@@ -183,7 +191,7 @@
      </property>
      <property name="font">
       <font>
-       <pointsize>14</pointsize>
+       <pointsize>12</pointsize>
       </font>
      </property>
     </column>
@@ -193,7 +201,7 @@
      </property>
      <property name="font">
       <font>
-       <pointsize>14</pointsize>
+       <pointsize>12</pointsize>
       </font>
      </property>
     </column>
@@ -203,7 +211,7 @@
      </property>
      <property name="font">
       <font>
-       <pointsize>14</pointsize>
+       <pointsize>12</pointsize>
       </font>
      </property>
     </column>
@@ -213,12 +221,12 @@
      </property>
      <property name="font">
       <font>
-       <pointsize>14</pointsize>
+       <pointsize>12</pointsize>
       </font>
      </property>
     </column>
    </widget>
-   <widget class="QTableWidget" name="weightsWidget_3">
+   <widget class="QTableWidget" name="newPortfolioTable">
     <property name="geometry">
      <rect>
       <x>10</x>
@@ -250,7 +258,7 @@
      </property>
      <property name="font">
       <font>
-       <pointsize>14</pointsize>
+       <pointsize>12</pointsize>
       </font>
      </property>
     </column>
@@ -260,7 +268,7 @@
      </property>
      <property name="font">
       <font>
-       <pointsize>14</pointsize>
+       <pointsize>12</pointsize>
       </font>
      </property>
     </column>
@@ -270,7 +278,7 @@
      </property>
      <property name="font">
       <font>
-       <pointsize>14</pointsize>
+       <pointsize>12</pointsize>
       </font>
      </property>
     </column>
@@ -280,7 +288,7 @@
      </property>
      <property name="font">
       <font>
-       <pointsize>14</pointsize>
+       <pointsize>12</pointsize>
       </font>
      </property>
     </column>
@@ -290,7 +298,7 @@
      </property>
      <property name="font">
       <font>
-       <pointsize>14</pointsize>
+       <pointsize>12</pointsize>
       </font>
      </property>
     </column>
@@ -300,16 +308,16 @@
      </property>
      <property name="font">
       <font>
-       <pointsize>14</pointsize>
+       <pointsize>12</pointsize>
       </font>
      </property>
     </column>
    </widget>
-   <widget class="QPushButton" name="addButton_2">
+   <widget class="QPushButton" name="rebalanceButton">
     <property name="geometry">
      <rect>
-      <x>310</x>
-      <y>540</y>
+      <x>300</x>
+      <y>530</y>
       <width>131</width>
       <height>24</height>
      </rect>
@@ -339,9 +347,9 @@
    <widget class="QLabel" name="label_3">
     <property name="geometry">
      <rect>
-      <x>30</x>
+      <x>10</x>
       <y>610</y>
-      <width>191</width>
+      <width>261</width>
       <height>41</height>
      </rect>
     </property>
@@ -354,67 +362,80 @@
      <string>Suggested Rebalancing Plan:</string>
     </property>
    </widget>
-   <widget class="QLabel" name="label_4">
+   <widget class="QPushButton" name="refreshButton">
+    <property name="geometry">
+     <rect>
+      <x>300</x>
+      <y>240</y>
+      <width>131</width>
+      <height>24</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Refresh portfolio</string>
+    </property>
+   </widget>
+   <widget class="QWidget" name="">
     <property name="geometry">
      <rect>
       <x>30</x>
       <y>550</y>
-      <width>131</width>
-      <height>41</height>
+      <width>224</width>
+      <height>52</height>
      </rect>
     </property>
-    <property name="font">
-     <font>
-      <pointsize>14</pointsize>
-     </font>
-    </property>
-    <property name="text">
-     <string>Current Evaluation:</string>
-    </property>
-   </widget>
-   <widget class="QLabel" name="label_5">
-    <property name="geometry">
-     <rect>
-      <x>30</x>
-      <y>580</y>
-      <width>111</width>
-      <height>41</height>
-     </rect>
-    </property>
-    <property name="font">
-     <font>
-      <pointsize>14</pointsize>
-     </font>
-    </property>
-    <property name="text">
-     <string>New Evaluation:</string>
-    </property>
-   </widget>
-   <widget class="QLabel" name="label_6">
-    <property name="geometry">
-     <rect>
-      <x>170</x>
-      <y>560</y>
-      <width>111</width>
-      <height>16</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>TextLabel1</string>
-    </property>
-   </widget>
-   <widget class="QLabel" name="label_7">
-    <property name="geometry">
-     <rect>
-      <x>170</x>
-      <y>590</y>
-      <width>111</width>
-      <height>16</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>TextLabel2</string>
-    </property>
+    <layout class="QFormLayout" name="formLayout">
+     <item row="0" column="0">
+      <widget class="QLabel" name="currEvalLabel">
+       <property name="font">
+        <font>
+         <pointsize>12</pointsize>
+        </font>
+       </property>
+       <property name="text">
+        <string>Current Evaluation:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QLabel" name="curEvalAmountLabel">
+       <property name="font">
+        <font>
+         <pointsize>11</pointsize>
+         <italic>true</italic>
+        </font>
+       </property>
+       <property name="text">
+        <string>$0</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0">
+      <widget class="QLabel" name="newEvalLabel">
+       <property name="font">
+        <font>
+         <pointsize>12</pointsize>
+        </font>
+       </property>
+       <property name="text">
+        <string>New Evaluation:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QLabel" name="newEvalAmountLabel">
+       <property name="font">
+        <font>
+         <pointsize>11</pointsize>
+         <italic>true</italic>
+        </font>
+       </property>
+       <property name="text">
+        <string>$0</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
@@ -422,12 +443,44 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>762</width>
-     <height>24</height>
+     <width>793</width>
+     <height>23</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionImport_Weights"/>
+    <addaction name="actionExport_Weights"/>
+    <addaction name="actionImport_Freedom24_API_Kei"/>
+    <addaction name="actionExport_Freedom24_API_key"/>
+    <addaction name="separator"/>
+    <addaction name="separator"/>
+   </widget>
+   <addaction name="menuFile"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionImport_Weights">
+   <property name="text">
+    <string>Import Weights</string>
+   </property>
+  </action>
+  <action name="actionExport_Weights">
+   <property name="text">
+    <string>Export Weights</string>
+   </property>
+  </action>
+  <action name="actionImport_Freedom24_API_Kei">
+   <property name="text">
+    <string>Import Freedom24 API key</string>
+   </property>
+  </action>
+  <action name="actionExport_Freedom24_API_key">
+   <property name="text">
+    <string>Export Freedom24 API key</string>
+   </property>
+  </action>
  </widget>
  <resources/>
  <connections/>
