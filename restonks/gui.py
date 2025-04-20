@@ -10,6 +10,8 @@ try:
 except ImportError:  # TODO: Remove this when packaging
     import lib
 
+# TODO: Add new values and weights to the table
+
 # TODO: Add callbacks
 # TODO: Add button to accept the API keys
 # TODO: Add export weights into different file formats
@@ -19,6 +21,9 @@ except ImportError:  # TODO: Remove this when packaging
 
 
 class Restonks:
+    positions: dict[str, dict[str, str | float]]
+    rebalance_orders: dict[str, dict[str, str | float]]
+
     def __init__(self):
         # Load the .ui file
         base, _ = os.path.split(__file__)
@@ -29,17 +34,29 @@ class Restonks:
         self.window = loader.load(ui_file)
         ui_file.close()
 
+        self.positions = {}
+        self.rebalance_orders = {}
+
         # Connect button callbacks
         self.window.refreshButton.clicked.connect(self.handle_refresh)
+        self.window.rebalanceButton.clicked.connect(self.handle_rebalance)
 
     # Define callbacks
     def handle_refresh(self):
-        positions = lib.get_all_positions()
-        print(positions)
-        portfolio_table = self.window.portfolioTable
-        portfolio_table.setRowCount(len(positions))
+        lib.config.set_investment_amount(float(self.window.amountBox.text()))
+        self.positions = lib.get_all_positions()
+        portfolio_eval = lib.get_portfolio_evaluation(self.positions)
+        future_portfolio_eval = portfolio_eval + lib.config.investment_amount
 
-        for i, (ticker, position) in enumerate(positions.items()):
+        # Update textbxoxes with current portfolio evaluation and future portfolio evaluation
+        self.window.curEvalAmountLabel.setText(f"${portfolio_eval:.2f}")
+        self.window.newEvalAmountLabel.setText(f"${future_portfolio_eval:.2f}")
+
+        # Update table with current portfolio
+        portfolio_table = self.window.portfolioTable
+        portfolio_table.setRowCount(len(self.positions))
+
+        for i, (ticker, position) in enumerate(self.positions.items()):
             portfolio_table.setItem(i, 0, QTableWidgetItem(ticker))
             portfolio_table.setItem(
                 i, 1, QTableWidgetItem(f"{position['market_price']:.2f}")
@@ -52,7 +69,25 @@ class Restonks:
             portfolio_table.setItem(
                 i, 5, QTableWidgetItem(f"{position['target_weight']:.2%}")
             )
-        # self.window.portfolioTable.show()
+
+    def handle_rebalance(self):
+        rebalance_orders, remaining_cash = lib.find_rebalancing(self.positions)
+
+        # Update table with rebalancing plan
+        rebalance_table = self.window.newPortfolioTable
+        rebalance_table.setRowCount(len(rebalance_orders))
+
+        for i, (ticker, order) in enumerate(rebalance_orders.items()):
+            rebalance_table.setItem(i, 0, QTableWidgetItem(ticker))
+            rebalance_table.setItem(i, 1, QTableWidgetItem(order["action"]))
+            rebalance_table.setItem(i, 2, QTableWidgetItem(f"{order['shares']:d}"))
+            rebalance_table.setItem(i, 3, QTableWidgetItem(f"${order['amount']:.2f}"))
+            rebalance_table.setItem(
+                i, 4, QTableWidgetItem(f"{order['new_weight']:.2%}")
+            )
+
+        # Update remaining cash label
+        # self.window.remainingCashLabel.setText(f"${remaining_cash:.2f}")
 
 
 def main() -> int:
