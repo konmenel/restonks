@@ -75,6 +75,20 @@ class Config:
 
 config = Config()
 
+def get_portfolio_evaluation(positions: dict[str, dict[str, str | float]]) -> float:
+    """Get the portfolio evaluation.
+
+    Parameters
+    ----------
+    positions : dict[str, dict[str, str  |  float]]
+        The dictionary containing the positions in the portfolio.
+
+    Returns
+    -------
+    float
+        The portfolio evaluation.
+    """
+    return sum(p["market_value"] for p in positions.values())
 
 @cache
 def get_exchange_rate(from_curr: str, to_curr: str) -> float:
@@ -263,7 +277,7 @@ def recalculate_weights(
         The key to use for the market value in the positions dictionary, by default
         "market_value"
     """
-    portfolio_eval = sum(p[market_value_key] for p in positions.values())
+    portfolio_eval = get_portfolio_evaluation(positions)
 
     for ticker in positions.keys():
         positions[ticker][weight_key] = (
@@ -360,10 +374,10 @@ def find_rebalancing(
                     # ) / future_portfolio_eval
                     remaining_cash -= cost
 
-    portfolio_eval = sum(p["market_value"] for p in positions.values())
-    new_portfolio_eval = portfolio_eval + Config.investment_amount - remaining_cash
+    portfolio_eval = get_portfolio_evaluation(positions)
+    new_portfolio_eval = portfolio_eval + config.investment_amount - remaining_cash
     for ticker, action in rebalance_orders.items():
-        rebalance_orders[ticker]["new_weights"] = (
+        rebalance_orders[ticker]["new_weight"] = (
             positions[ticker]["market_value"] + action["amount"]
         ) / new_portfolio_eval
     return rebalance_orders, remaining_cash
