@@ -21,14 +21,14 @@ class Config:
     ValueError
         If investement amount is negative.
     """
-    api: TraderNetAPI
-    weights_file: str
-    investment_amount: float
+    _api: TraderNetAPI
+    _weights_file: str
+    _investment_amount: float
 
     def __init__(self) -> None:
-        self.api = None
-        self.weights_file = None
-        self.investment_amount = -1
+        self._api = None
+        self._weights_file = None
+        self._investment_amount = 0.0
 
     def initialise(
         self, api_key_file: str, weights_file: str, investment_amount: float
@@ -41,9 +41,36 @@ class Config:
         if investment_amount < 0:
             ValueError("Investment amount cannot be negative!")
 
-        self.api = TraderNetAPI.from_config(api_key_file)
-        self.weights_file = weights_file
-        self.investment_amount = investment_amount
+        self._api = TraderNetAPI.from_config(api_key_file)
+        self._weights_file = weights_file
+        self._investment_amount = investment_amount
+
+    @property
+    def api(self) -> TraderNetAPI: 
+        """Get the API object."""
+        if self._api is None:
+            raise ValueError("API not initialized!")
+        return self._api
+    
+    @property
+    def weights_file(self) -> str:
+        """Get the weights file."""
+        if self._weights_file is None:
+            raise ValueError("Weights file not initialized!")
+        return self._weights_file
+    
+    @property
+    def investment_amount(self) -> float:
+        """Get the investment amount."""
+        if self._investment_amount is None:
+            raise ValueError("Investment amount not initialized!")
+        return self._investment_amount
+    
+    def set_investment_amount(self, amount: float) -> None:
+        """Set the investment amount."""
+        if amount < 0:
+            raise ValueError("Investment amount cannot be negative!")
+        self._investment_amount = amount
 
 
 config = Config()
