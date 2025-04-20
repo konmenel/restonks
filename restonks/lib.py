@@ -41,6 +41,20 @@ config = Config()
 
 @cache
 def get_exchange_rate(from_curr: str, to_curr: str) -> float:
+    """Get the current exchange between two currencies.
+
+    Parameters
+    ----------
+    from_curr : str
+        The currencies you are exchanging from.
+    to_curr : str
+        The currencies you are exchanging to.
+
+    Returns
+    -------
+    float
+        The exchange rate.
+    """
     if from_curr == to_curr:
         return 1
 
@@ -148,6 +162,25 @@ def get_all_positions() -> dict[str, dict[str, str | float]]:
         positions_dict[ticker] = pos
     return positions_dict
 
+
+def recalculate_weights(positions: dict[str, dict[str, str | float]]) -> None:
+    portfolio_eval = sum(p["market_value"] for p in positions.values())
+
+    for ticker in positions.keys():
+        positions[ticker]["weight"] = positions[ticker]["market_value"] / portfolio_eval
+
+
+def apply_rebalancing(
+    positions: dict[str, dict[str, str | float]],
+    rebalance_orders: dict[str, dict[str, str | float]],
+) -> dict[str, dict[str, str | float]]:
+    new_positions = positions.copy()
+    for ticker, actions in rebalance_orders.items():
+        new_positions[ticker]["shares"] += actions["shares"]
+        new_positions[ticker]["market_value"] += actions["amount"]
+    
+    recalculate_weights(new_positions)
+    return new_positions
 
 def find_rebalancing(
     positions: dict[str, dict[str, str | float]],

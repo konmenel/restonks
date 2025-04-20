@@ -70,13 +70,10 @@ def display_results(
 
     # Post-rebalancing portfolio summary
     print("\n==== Updated Portfolio ====")
-    new_profolio_df = portfolio_df.copy()
-    for name, row in rebalance_df.iterrows():
-        new_profolio_df.loc[name, "shares"] += row["shares"]
-        new_profolio_df.loc[name, "weight"] = row["new_weight"]
-        new_profolio_df.loc[name, "market_value"] += row["amount"]
+    new_positons = lib.apply_rebalancing(positions, rebalance_orders)
+    new_portfolio_df = pd.DataFrame.from_dict(new_positons, orient="index")
     print(
-        new_profolio_df.to_string(
+        new_portfolio_df.to_string(
             formatters={"weight": "{:.2%}".format, "target_weight": "{:.2%}".format}
         )
     )
