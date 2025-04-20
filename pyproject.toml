@@ -14,9 +14,10 @@ license-files = ["LICEN[CS]E*"]
 
 [tool.setuptools]
 include-package-data = true
+packages = ["restonks", "restonks.ui"] 
 
 [tool.setuptools.package-data]
-"*" = ["*.ui"]
+"restonks" = ["ui/*.ui"]
 
 [project.scripts]
 restonks = "restonks.cli:main"
