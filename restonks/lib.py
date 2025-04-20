@@ -11,6 +11,16 @@ from functools import cache
 
 
 class Config:
+    """Manages the configuration of the script.
+
+    Raises
+    ------
+    FileNotFoundError
+        If weights file is not found.
+
+    ValueError
+        If investement amount is negative.
+    """
     api: TraderNetAPI
     weights_file: str
     investment_amount: float
@@ -69,6 +79,27 @@ def get_exchange_rate(from_curr: str, to_curr: str) -> float:
 def filter_open_positions(
     open_positions: list[dict[str, str | float]],
 ) -> list[dict[str, str | float]]:
+    """Filter the open_position list that you get from the 
+    Freedom24 API.
+
+    The new list will contain dictionaries with key:
+    - name: the ticker of the position.
+    - market_price: the price of each piece.
+    - shares: the number of pieces.
+    - market_value: the total evaluation, i.e. market_price * shares.
+    - weight: The current percentage of the stock in the portfolio.
+
+    Parameters
+    ----------
+    open_positions : list[dict[str, str  |  float]]
+        The list of the open positions that is returned from
+        Freedom24.
+
+    Returns
+    -------
+    list[dict[str, str | float]]
+        The filtered positions.
+    """
     portfolio_eval = sum(p["market_value"] for p in open_positions)
 
     open_pos: list[dict[str, str | float]] = []
@@ -89,6 +120,15 @@ def filter_open_positions(
 
 
 def append_position(positions: list[dict[str, str | float]], ticker: str) -> None:
+    """Appends an empty position in the portfolio list. 
+
+    Parameters
+    ----------
+    positions : list[dict[str, str  |  float]]
+        The list of the positions.
+    ticker : str
+        The ticker of the new position.
+    """
     res = config.api.authorized_request("getStockQuotesJson", dict(tickers=ticker))
     price = res["result"]["q"][0]["ltp"]
     res = config.api.authorized_request("tickerFinder", dict(text=ticker))
@@ -107,6 +147,22 @@ def append_position(positions: list[dict[str, str | float]], ticker: str) -> Non
 
 
 def get_all_positions() -> dict[str, dict[str, str | float]]:
+    """Get all the positions in the portfolio.
+
+    Returns
+    -------
+    dict[str, dict[str, str | float]]
+        The dictionary containing the positions in the portfolio.
+        The keys are the tickers and the values are dictionaries with the
+        following keys:
+        - market_price: The price of the stock.
+        - shares: The number of shares in the portfolio.
+        - market_value: The total value of the stock in the portfolio.
+        - weight: The current weight of the stock in the portfolio.
+        - target_weight: The target weight of the stock in the portfolio.
+        - target_value: The target value of the stock in the portfolio.
+
+    """
     open_positions = config.api.account_summary()["result"]["ps"]["pos"]
     positions = filter_open_positions(open_positions)
     pos_names = [p["name"] for p in positions]
@@ -163,30 +219,62 @@ def get_all_positions() -> dict[str, dict[str, str | float]]:
     return positions_dict
 
 
-def recalculate_weights(positions: dict[str, dict[str, str | float]]) -> None:
-    portfolio_eval = sum(p["market_value"] for p in positions.values())
+def recalculate_weights(
+    positions: dict[str, dict[str, str | float]],
+    weight_key="weight",
+    market_value_key="market_value",
+) -> None:
+    """Recalculates the weights of the positions in the portfolio.
+
+    Parameters
+    ----------
+    positions : dict[str, dict[str, str  |  float]]
+        The dictionary containing the positions in the portfolio.
+    weight_key : str, optional
+        The key to use for the weight in the positions dictionary, by default "weight"
+    market_value_key : str, optional
+        The key to use for the market value in the positions dictionary, by default
+        "market_value"
+    """
+    portfolio_eval = sum(p[market_value_key] for p in positions.values())
 
     for ticker in positions.keys():
-        positions[ticker]["weight"] = positions[ticker]["market_value"] / portfolio_eval
+        positions[ticker][weight_key] = (
+            positions[ticker][market_value_key] / portfolio_eval
+        )
 
 
 def apply_rebalancing(
     positions: dict[str, dict[str, str | float]],
     rebalance_orders: dict[str, dict[str, str | float]],
 ) -> dict[str, dict[str, str | float]]:
+    """Applies the rebalancing plan in the current positions.
+
+    Parameters
+    ----------
+    positions : dict[str, dict[str, str  |  float]]
+        The dictionary containing the current positions.
+    rebalance_orders : dict[str, dict[str, str  |  float]]
+        The rebalancing plan dictionary.
+
+    Returns
+    -------
+    dict[str, dict[str, str | float]]
+        The new positions after the rebalancing.
+    """
     new_positions = positions.copy()
     for ticker, actions in rebalance_orders.items():
         new_positions[ticker]["shares"] += actions["shares"]
         new_positions[ticker]["market_value"] += actions["amount"]
-    
+
     recalculate_weights(new_positions)
     return new_positions
+
 
 def find_rebalancing(
     positions: dict[str, dict[str, str | float]],
 ) -> tuple[dict[str, dict[str, str | float]], float]:
-    portfolio_eval = sum(p["market_value"] for p in positions.values())
-    future_portfolio_eval = portfolio_eval + config.investment_amount
+    # future_portfolio_eval = portfolio_eval + config.investment_amount
 
     remaining_cash = config.investment_amount
     rebalance_orders = {}
@@ -208,7 +296,7 @@ def find_rebalancing(
                     "action": "BUY",
                     "shares": shares_to_buy,
                     "amount": cost,
-                    "new_weight": (pos["market_value"] + cost) / future_portfolio_eval,
+                    # "new_weight": (pos["market_value"] + cost) / future_portfolio_eval,
                 }
                 remaining_cash -= cost
 
@@ -225,8 +313,15 @@ def find_rebalancing(
                     )
                     rebalance_orders[ticker]["shares"] += shares_to_buy
                     rebalance_orders[ticker]["amount"] += cost
-                    rebalance_orders[ticker]["new_weight"] = (
-                        pos["market_value"] + rebalance_orders[ticker]["amount"]
-                    ) / future_portfolio_eval
+                    # rebalance_orders[ticker]["new_weight"] = (
+                    #     pos["market_value"] + rebalance_orders[ticker]["amount"]
+                    # ) / future_portfolio_eval
                     remaining_cash -= cost
+
+    portfolio_eval = sum(p["market_value"] for p in positions.values())
+    new_portfolio_eval = portfolio_eval + Config.investment_amount - remaining_cash
+    for ticker, action in rebalance_orders.items():
+        rebalance_orders[ticker]["new_weights"] = (
+            positions[ticker]["market_value"] + action["amount"]
+        ) / new_portfolio_eval
     return rebalance_orders, remaining_cash
