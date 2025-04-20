@@ -274,8 +274,23 @@ def apply_rebalancing(
 def find_rebalancing(
     positions: dict[str, dict[str, str | float]],
 ) -> tuple[dict[str, dict[str, str | float]], float]:
-    # future_portfolio_eval = portfolio_eval + config.investment_amount
+    """Finds the rebalancing plan for the current portfolio.
+    The function will try to buy the cheapest stocks first and then
+    the more expensive ones.
+    The function will also try to buy the stocks that are furthest
+    from the target value first.
 
+    Parameters
+    ----------
+    positions : dict[str, dict[str, str  |  float]]
+        The dictionary containing the current positions.
+
+    Returns
+    -------
+    tuple[dict[str, dict[str, str | float]], float]
+        The rebalancing plan and the remaining cash after the
+        rebalancing.
+    """
     remaining_cash = config.investment_amount
     rebalance_orders = {}
     for ticker, pos in positions.items():
