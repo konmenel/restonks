@@ -445,7 +445,6 @@ def find_rebalancing(
                     "action": "BUY",
                     "shares": shares_to_buy,
                     "amount": cost,
-                    # "new_weight": (pos["market_value"] + cost) / future_portfolio_eval,
                 }
                 remaining_cash -= cost
 
@@ -453,7 +452,12 @@ def find_rebalancing(
     if remaining_cash > 0:
         for ticker, pos in positions.items():
             price = pos["market_price"]
-            if price <= remaining_cash:
+
+            price = pos["market_price"]
+            diff = pos["target_value"] - pos["market_value"]
+            shares_needed = diff // price  # Whole shares to close gap
+
+            if shares_needed > 0 and price <= remaining_cash:
                 shares_to_buy = int(remaining_cash // price)
                 if shares_to_buy > 0:
                     cost = shares_to_buy * price
@@ -462,9 +466,6 @@ def find_rebalancing(
                     )
                     rebalance_orders[ticker]["shares"] += shares_to_buy
                     rebalance_orders[ticker]["amount"] += cost
-                    # rebalance_orders[ticker]["new_weight"] = (
-                    #     pos["market_value"] + rebalance_orders[ticker]["amount"]
-                    # ) / future_portfolio_eval
                     remaining_cash -= cost
 
     portfolio_eval = get_portfolio_evaluation(positions)
