@@ -156,10 +156,11 @@ class RestonksWindow:
         popup = RemovePopup(lib.config.weights.keys())
         if popup.exec() == QDialog.Accepted:  # Wait for user action
             if popup.selected_ticker:  # Check if a ticker was selected
-                print(f"Removed: {popup.selected_ticker}")  # Optional log
                 lib.config.remove_weight(popup.selected_ticker)
-                # Update the weights table
                 self.update_weights_table()
+                self.window.statusBar().showMessage(
+                    f"Removed {popup.selected_ticker} from weights."
+                )
 
     # Define callbacks
     def handle_refresh(self):
