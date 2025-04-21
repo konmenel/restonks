@@ -48,10 +48,10 @@
      <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
     </property>
     <property name="rowCount">
-     <number>10</number>
+     <number>0</number>
     </property>
     <property name="columnCount">
-     <number>0</number>
+     <number>2</number>
     </property>
     <attribute name="horizontalHeaderMinimumSectionSize">
      <number>19</number>
@@ -59,16 +59,16 @@
     <attribute name="horizontalHeaderDefaultSectionSize">
      <number>100</number>
     </attribute>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
+    <column>
+     <property name="text">
+      <string>Ticker</string>
+     </property>
+    </column>
+    <column>
+     <property name="text">
+      <string>Weights</string>
+     </property>
+    </column>
    </widget>
    <widget class="QPushButton" name="addButton">
     <property name="geometry">
