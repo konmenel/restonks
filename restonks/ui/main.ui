@@ -141,7 +141,7 @@
      <number>5</number>
     </property>
     <property name="columnCount">
-     <number>8</number>
+     <number>6</number>
     </property>
     <attribute name="horizontalHeaderMinimumSectionSize">
      <number>19</number>
@@ -197,26 +197,6 @@
     <column>
      <property name="text">
       <string>Current Weight</string>
-     </property>
-     <property name="font">
-      <font>
-       <pointsize>12</pointsize>
-      </font>
-     </property>
-    </column>
-    <column>
-     <property name="text">
-      <string>New Value</string>
-     </property>
-     <property name="font">
-      <font>
-       <pointsize>12</pointsize>
-      </font>
-     </property>
-    </column>
-    <column>
-     <property name="text">
-      <string>New Weight</string>
      </property>
      <property name="font">
       <font>
@@ -473,7 +453,7 @@
      <x>0</x>
      <y>0</y>
      <width>789</width>
-     <height>36</height>
+     <height>33</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
