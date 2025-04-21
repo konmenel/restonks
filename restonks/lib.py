@@ -143,6 +143,15 @@ class Config:
             raise ValueError("The sum of the weights cannot be greater than 1!")
 
         self._weights[ticker] = weight
+    
+    def remove_weight(self, ticker: str) -> None:
+        """Removes a weight from the weights dictionary."""
+        if not isinstance(ticker, str):
+            raise TypeError("Ticker must be a string!")
+        if ticker in self._weights:
+            del self._weights[ticker]
+        else:
+            raise KeyError(f"Ticker {ticker} not found in weights!")
 
 
 config = Config()
