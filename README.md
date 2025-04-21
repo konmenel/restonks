@@ -5,6 +5,8 @@ The tool for rebalancing your Freedom24 portfolio.
 - pandas
 - tradenet-sdk
 - Fredom24 API key
+- Qt6
+- Pyside6
 
 ## Installation
 ```bash
@@ -13,12 +15,14 @@ cd restonks
 pip install .
 ```
 
-## Usage
+## CLI
+
+### Usage
 ```bash
 restonks [-h] [-w WEIGHTS] [-k API_KEY] <investment_amount>
 ```
 
-## Freedom24 API key
+### Freedom24 API key
 The Freedom24 API key can be obtained from the [Freedom24 API documentation](https://freedom24.com/tradernet-api/auth-api). The keys are provided using an INI file. By default the script looks at the current working directory for a file called "tradernet.ini". However, the file path can be provided using the `-k` or `--api-key` options.
 
 The file containing the keys should be provided with the following format:
@@ -28,7 +32,7 @@ public   =  <public-key>
 private  = <private-key>
 ```
 
-## Weights TOML file
+### Weights TOML file
 The target weights are provided using a TOML file. The target weights' sum should never greater than 1, however, the can be less than 1. By default the script looks at the current working directory for a file called "weights.toml". However, the file path can be provided using the `-w` or `--weights` options.
 
 The weights file should have the following format:
@@ -57,4 +61,9 @@ name = "TICKER3.EU"
 target_weight = 0.05
 
 etc..
+```
+
+## GUI 
+```bash
+restonks-gui &
 ```
