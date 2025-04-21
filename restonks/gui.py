@@ -13,10 +13,8 @@ from PySide6.QtWidgets import (
     QComboBox,
     QMessageBox,
     QLabel,
-    QPushButton,
 )
 from PySide6.QtCore import QFile
-from PySide6.QtCore import Signal
 
 try:
     from . import lib
@@ -130,7 +128,7 @@ class RestonksWindow:
         self.window.actionExportWeights.triggered.connect(self.handle_export_weights)
         self.window.actionImportAPIKey.triggered.connect(self.handle_import_api_keys)
 
-    # TODO: Check if ticker exists using Freedom 24 API 
+    # TODO: Check if ticker exists using Freedom 24 API
     # TODO: Check if weights add to 100
     def handle_add(self):
         popup = Add_popup()
@@ -141,10 +139,14 @@ class RestonksWindow:
             try:
                 weight = float(weight) / 100  # Convert to decimal
                 if ticker in lib.config.weights:
-                    self.window.statusBar().showMessage(f"Ticker {ticker} already exists.")
+                    self.window.statusBar().showMessage(
+                        f"Ticker {ticker} already exists."
+                    )
                 lib.config.add_weight(ticker, weight)
                 self.update_weights_table()
-                self.window.statusBar().showMessage(f"Added {ticker} with weight {weight:.2%}")
+                self.window.statusBar().showMessage(
+                    f"Added {ticker} with weight {weight:.2%}"
+                )
             except ValueError:
                 self.window.statusBar().showMessage(f"Invalid weight: {weight}")
             except Exception as e:
