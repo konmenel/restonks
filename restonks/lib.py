@@ -6,7 +6,6 @@ from functools import cache
 
 
 # TODO: Add sell action as option.
-# TODO: ADD dockstrings
 # TODO: Setup MYPY
 
 
@@ -112,15 +111,19 @@ class Config:
             ticker["name"]: ticker["target_weight"] for ticker in weights["tickers"]
         }
         total_weight = sum(weights.values())
-        assert total_weight <= 1, "The sum of the weights cannot be greater than 1!"
+        if total_weight > 1:
+            raise ValueError("The sum of the weights cannot be greater than 1!")
         self._weights = weights
 
     def set_weights(self, weights: dict[str, float]) -> None:
         """Import the weights from a dictionary."""
         if not isinstance(weights, dict):
             raise TypeError("Weights must be a dictionary!")
+
         total_weight = sum(weights.values())
-        assert total_weight <= 1, "The sum of the weights cannot be greater than 1!"
+        if total_weight > 1:
+            raise ValueError("The sum of the weights cannot be greater than 1!")
+
         self._weights = weights
 
     def add_weight(self, ticker: str, weight: float) -> None:
@@ -129,6 +132,16 @@ class Config:
             raise TypeError("Ticker must be a string!")
         if not isinstance(weight, float):
             raise TypeError("Weight must be a float!")
+
+        if weight < 0:
+            raise ValueError("Weight cannot be negative!")
+        if weight > 1:
+            raise ValueError("Weight cannot be greater than 1!")
+
+        total_weight = sum(self._weights.values()) + weight
+        if total_weight > 1:
+            raise ValueError("The sum of the weights cannot be greater than 1!")
+
         self._weights[ticker] = weight
 
 
