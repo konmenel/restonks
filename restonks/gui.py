@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QMessageBox,
     QLabel,
-    QMainWindow,
     QWidget,
 )
 from PySide6.QtCore import QFile
@@ -98,13 +97,13 @@ class RemovePopup(QDialog):
                 self.selected_ticker = None  # Reset if user cancels
 
 
-class RestonksWindow(QMainWindow):
+class RestonksWindow:
     """A class to represent the main window of the application.
     This class is responsible for loading the UI file, initializing the application,
     and handling user interactions.
     """
 
-    window: QWidget
+    ui: QWidget
     positions: dict[str, dict[str, str | float]]
     rebalance_orders: dict[str, dict[str, str | float]]
 
@@ -114,7 +113,6 @@ class RestonksWindow(QMainWindow):
 
         self.positions = {}
         self.rebalance_orders = {}
-        self.is_initialized = False
         self.ui.setWindowTitle("Restonks")
 
         # Connect button callbacks
