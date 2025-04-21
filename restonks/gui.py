@@ -57,11 +57,9 @@ class RestonksWindow:
         lib.config.set_investment_amount(float(self.window.amountBox.text()))
         self.positions = lib.get_all_positions()
         portfolio_eval = lib.get_portfolio_evaluation(self.positions)
-        future_portfolio_eval = portfolio_eval + lib.config.investment_amount
 
         # Update textbxoxes with current portfolio evaluation and future portfolio evaluation
         self.window.curEvalAmountLabel.setText(f"${portfolio_eval:.2f}")
-        self.window.newEvalAmountLabel.setText(f"${future_portfolio_eval:.2f}")
 
         # Update table with current portfolio
         portfolio_table = self.window.portfolioTable
@@ -76,13 +74,14 @@ class RestonksWindow:
             portfolio_table.setItem(
                 i, 3, QTableWidgetItem(f"{position['market_value']:.2f}")
             )
-            portfolio_table.setItem(i, 4, QTableWidgetItem(f"{position['weight']:.2%}"))
+            portfolio_table.setItem(i, 6, QTableWidgetItem(f"{position['weight']:.2%}"))
             portfolio_table.setItem(
                 i, 5, QTableWidgetItem(f"{position['target_weight']:.2%}")
             )
 
     def handle_rebalance(self):
-        rebalance_orders, _ = lib.find_rebalancing(self.positions)
+        
+        rebalance_orders, remaining_cash = lib.find_rebalancing(self.positions)
 
         # Update table with rebalancing plan
         rebalance_table = self.window.newPortfolioTable
@@ -97,8 +96,10 @@ class RestonksWindow:
                 i, 4, QTableWidgetItem(f"{order['new_weight']:.2%}")
             )
 
-        # Update remaining cash label
-        # self.window.remainingCashLabel.setText(f"${remaining_cash:.2f}")
+        future_portfolio_eval = lib.get_portfolio_evaluation(self.positions)+lib.config.investment_amount -remaining_cash
+
+        self.window.newEvalAmountLabel.setText(f"${future_portfolio_eval:.2f}")
+        self.window.remainingCashAmountLabel.setText(f"${remaining_cash:.2f}")
 
     def handle_import_weights(self):
         """Handle the import of weights from a toml file."""

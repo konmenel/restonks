@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>793</width>
-    <height>884</height>
+    <width>789</width>
+    <height>981</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -51,7 +51,7 @@
      <number>10</number>
     </property>
     <property name="columnCount">
-     <number>2</number>
+     <number>0</number>
     </property>
     <attribute name="horizontalHeaderMinimumSectionSize">
      <number>19</number>
@@ -69,26 +69,6 @@
     <row/>
     <row/>
     <row/>
-    <column>
-     <property name="text">
-      <string>Ticker</string>
-     </property>
-     <property name="font">
-      <font>
-       <pointsize>12</pointsize>
-      </font>
-     </property>
-    </column>
-    <column>
-     <property name="text">
-      <string>Weights</string>
-     </property>
-     <property name="font">
-      <font>
-       <pointsize>12</pointsize>
-      </font>
-     </property>
-    </column>
    </widget>
    <widget class="QPushButton" name="addButton">
     <property name="geometry">
@@ -161,7 +141,7 @@
      <number>5</number>
     </property>
     <property name="columnCount">
-     <number>6</number>
+     <number>8</number>
     </property>
     <attribute name="horizontalHeaderMinimumSectionSize">
      <number>19</number>
@@ -206,7 +186,7 @@
     </column>
     <column>
      <property name="text">
-      <string>Value in Portfolio</string>
+      <string>Current Value</string>
      </property>
      <property name="font">
       <font>
@@ -217,6 +197,26 @@
     <column>
      <property name="text">
       <string>Current Weight</string>
+     </property>
+     <property name="font">
+      <font>
+       <pointsize>12</pointsize>
+      </font>
+     </property>
+    </column>
+    <column>
+     <property name="text">
+      <string>New Value</string>
+     </property>
+     <property name="font">
+      <font>
+       <pointsize>12</pointsize>
+      </font>
+     </property>
+    </column>
+    <column>
+     <property name="text">
+      <string>New Weight</string>
      </property>
      <property name="font">
       <font>
@@ -239,8 +239,8 @@
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>660</y>
-      <width>741</width>
+      <y>600</y>
+      <width>521</width>
       <height>171</height>
      </rect>
     </property>
@@ -251,7 +251,7 @@
      <number>5</number>
     </property>
     <property name="columnCount">
-     <number>6</number>
+     <number>4</number>
     </property>
     <attribute name="horizontalHeaderMinimumSectionSize">
      <number>19</number>
@@ -304,32 +304,12 @@
       </font>
      </property>
     </column>
-    <column>
-     <property name="text">
-      <string>New Weights</string>
-     </property>
-     <property name="font">
-      <font>
-       <pointsize>12</pointsize>
-      </font>
-     </property>
-    </column>
-    <column>
-     <property name="text">
-      <string>New Value</string>
-     </property>
-     <property name="font">
-      <font>
-       <pointsize>12</pointsize>
-      </font>
-     </property>
-    </column>
    </widget>
    <widget class="QPushButton" name="rebalanceButton">
     <property name="geometry">
      <rect>
-      <x>300</x>
-      <y>530</y>
+      <x>320</x>
+      <y>520</y>
       <width>131</width>
       <height>24</height>
      </rect>
@@ -360,7 +340,7 @@
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>610</y>
+      <y>560</y>
       <width>261</width>
       <height>41</height>
      </rect>
@@ -391,24 +371,12 @@
     <property name="geometry">
      <rect>
       <x>30</x>
-      <y>550</y>
+      <y>520</y>
       <width>224</width>
-      <height>52</height>
+      <height>40</height>
      </rect>
     </property>
     <layout class="QFormLayout" name="formLayout">
-     <item row="0" column="0">
-      <widget class="QLabel" name="currEvalLabel">
-       <property name="font">
-        <font>
-         <pointsize>12</pointsize>
-        </font>
-       </property>
-       <property name="text">
-        <string>Current Evaluation:</string>
-       </property>
-      </widget>
-     </item>
      <item row="0" column="1">
       <widget class="QLabel" name="curEvalAmountLabel">
        <property name="font">
@@ -422,7 +390,56 @@
        </property>
       </widget>
      </item>
+     <item row="0" column="0">
+      <widget class="QLabel" name="currEvalLabel">
+       <property name="font">
+        <font>
+         <pointsize>12</pointsize>
+        </font>
+       </property>
+       <property name="text">
+        <string>Current Evaluation:</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+   <widget class="QWidget" name="layoutWidget_2">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>780</y>
+      <width>224</width>
+      <height>63</height>
+     </rect>
+    </property>
+    <layout class="QFormLayout" name="formLayout_2">
      <item row="1" column="0">
+      <widget class="QLabel" name="remainingCashLabel">
+       <property name="font">
+        <font>
+         <pointsize>12</pointsize>
+        </font>
+       </property>
+       <property name="text">
+        <string>Remaining Cash:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QLabel" name="remainingCashAmountLabel">
+       <property name="font">
+        <font>
+         <pointsize>11</pointsize>
+         <italic>true</italic>
+        </font>
+       </property>
+       <property name="text">
+        <string>$0</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="0">
       <widget class="QLabel" name="newEvalLabel">
        <property name="font">
         <font>
@@ -434,7 +451,7 @@
        </property>
       </widget>
      </item>
-     <item row="1" column="1">
+     <item row="0" column="1">
       <widget class="QLabel" name="newEvalAmountLabel">
        <property name="font">
         <font>
@@ -455,8 +472,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>793</width>
-     <height>33</height>
+     <width>789</width>
+     <height>36</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
