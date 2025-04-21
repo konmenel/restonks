@@ -463,32 +463,32 @@
     <property name="title">
      <string>File</string>
     </property>
-    <addaction name="actionImport_Weights"/>
-    <addaction name="actionExport_Weights"/>
-    <addaction name="actionImport_Freedom24_API_Kei"/>
-    <addaction name="actionExport_Freedom24_API_key"/>
+    <addaction name="actionImportWeights"/>
+    <addaction name="actionExportWeights"/>
+    <addaction name="actionImportAPIKey"/>
+    <addaction name="actionExportFreedom24APIKey"/>
     <addaction name="separator"/>
     <addaction name="separator"/>
    </widget>
    <addaction name="menuFile"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
-  <action name="actionImport_Weights">
+  <action name="actionImportWeights">
    <property name="text">
     <string>Import Weights</string>
    </property>
   </action>
-  <action name="actionExport_Weights">
+  <action name="actionExportWeights">
    <property name="text">
     <string>Export Weights</string>
    </property>
   </action>
-  <action name="actionImport_Freedom24_API_Kei">
+  <action name="actionImportAPIKey">
    <property name="text">
     <string>Import Freedom24 API key</string>
    </property>
   </action>
-  <action name="actionExport_Freedom24_API_key">
+  <action name="actionExportFreedom24APIKey">
    <property name="text">
     <string>Export Freedom24 API key</string>
    </property>
