@@ -2,8 +2,21 @@
 import os
 import sys
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtWidgets import QApplication, QTableWidgetItem, QFileDialog
+from PySide6.QtWidgets import (
+    QApplication,
+    QTableWidgetItem,
+    QFileDialog,
+    QDialog,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QComboBox,
+    QMessageBox,
+    QLabel,
+    QPushButton,
+)
 from PySide6.QtCore import QFile
+from PySide6.QtCore import Signal
 
 try:
     from . import lib
@@ -18,6 +31,75 @@ except ImportError:  # TODO: Remove this when packaging
 # TODO: Save last configuration of weights for next session
 # TODO: Create second tab/dock for results
 # TODO: Pull list of securities on startup.
+
+
+class Add_popup(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Add Ticker")
+        self.setGeometry(100, 100, 300, 200)
+
+        # Create widgets
+        self.add_ticker = QLineEdit()
+        self.add_ticker.setPlaceholderText(
+            "Enter Ticker"
+        )  # Disappears automatically when clicked
+        self.add_weight = QLineEdit()
+        self.add_weight.setPlaceholderText(
+            "Enter Weight (%)"
+        )  # Disappears automatically when clicked
+        button = QPushButton("Add position")
+
+        # Add button signal to greetings slot
+        button.clicked.connect(self.accept)
+
+        # Create layout and add widgets
+        layout = QVBoxLayout()
+        layout.addWidget(self.add_ticker)
+        layout.addWidget(self.add_weight)
+        layout.addWidget(button)
+        # Set dialog layout
+        self.setLayout(layout)
+
+    def get_values(self):
+        return (self.add_ticker.text(), self.add_weight.text())
+
+
+class RemovePopup(QDialog):
+    def __init__(self, tickers_list):
+        super().__init__()
+        self.setWindowTitle("Remove Ticker")
+        self.setGeometry(100, 100, 300, 150)
+        self.selected_ticker = None  # Stores the ticker to remove
+
+        # Dropdown list (QComboBox)
+        self.combo_box = QComboBox()
+        self.combo_box.addItems(tickers_list)
+
+        # Remove button
+        button_remove = QPushButton("Remove Selected Ticker")
+        button_remove.clicked.connect(self.remove_ticker)
+
+        # Layout
+        layout = QVBoxLayout()
+        layout.addWidget(QLabel("Select Ticker to Remove:"))
+        layout.addWidget(self.combo_box)
+        layout.addWidget(button_remove)
+        self.setLayout(layout)
+
+    def remove_ticker(self):
+        self.selected_ticker = self.combo_box.currentText()
+        if self.selected_ticker:
+            confirm = QMessageBox.question(
+                self,
+                "Confirm Removal",
+                f"Remove '{self.selected_ticker}'?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+            if confirm == QMessageBox.Yes:
+                self.accept()  # Close dialog with "Accepted" status
+            else:
+                self.selected_ticker = None  # Reset if user cancels
 
 
 class RestonksWindow:
@@ -45,11 +127,42 @@ class RestonksWindow:
         self.window.setWindowTitle("Restonks")
 
         # Connect button callbacks
+        self.window.addButton.clicked.connect(self.handle_add)
+        self.window.removeButton.clicked.connect(self.handle_remove)
         self.window.refreshButton.clicked.connect(self.handle_refresh)
         self.window.rebalanceButton.clicked.connect(self.handle_rebalance)
         self.window.actionImportWeights.triggered.connect(self.handle_import_weights)
         self.window.actionExportWeights.triggered.connect(self.handle_export_weights)
         self.window.actionImportAPIKey.triggered.connect(self.handle_import_api_keys)
+
+    # TODO: Check if ticker exists using Freedom 24 API 
+    # TODO: Check if weights add to 100
+    def handle_add(self):
+        popup = Add_popup()
+        if popup.exec_() == QDialog.Accepted:  # Wait for dialog to close
+            ticker, weight = popup.get_values()
+            ticker = ticker.strip().upper()  # Clean up the ticker
+            weight = weight.strip()
+            try:
+                weight = float(weight) / 100  # Convert to decimal
+                if ticker in lib.config.weights:
+                    self.window.statusBar().showMessage(f"Ticker {ticker} already exists.")
+                lib.config.add_weight(ticker, weight)
+                self.update_weights_table()
+                self.window.statusBar().showMessage(f"Added {ticker} with weight {weight:.2%}")
+            except ValueError:
+                self.window.statusBar().showMessage(f"Invalid weight: {weight}")
+            except Exception as e:
+                self.window.statusBar().showMessage(f"Error adding weight: {e}")
+
+    def handle_remove(self):
+        popup = RemovePopup(lib.config.weights.keys())
+        if popup.exec() == QDialog.Accepted:  # Wait for user action
+            if popup.selected_ticker:  # Check if a ticker was selected
+                print(f"Removed: {popup.selected_ticker}")  # Optional log
+                lib.config.remove_weight(popup.selected_ticker)
+                # Update the weights table
+                self.update_weights_table()
 
     # Define callbacks
     def handle_refresh(self):
