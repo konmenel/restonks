@@ -3,6 +3,7 @@ import errno
 import tomllib
 from tradernet import TraderNetAPI
 from functools import cache
+from copy import deepcopy
 
 
 # TODO: Add sell action as option.
@@ -391,7 +392,7 @@ def apply_rebalancing(
     dict[str, dict[str, str | float]]
         The new positions after the rebalancing.
     """
-    new_positions = positions.copy()
+    new_positions = deepcopy(positions)
     for ticker, actions in rebalance_orders.items():
         new_positions[ticker]["shares"] += actions["shares"]
         new_positions[ticker]["market_value"] += actions["amount"]
@@ -420,6 +421,7 @@ def find_rebalancing(
         The rebalancing plan and the remaining cash after the
         rebalancing.
     """
+    positions = deepcopy(positions)
     portfolio_eval = get_portfolio_evaluation(positions)
     future_portfolio_eval = portfolio_eval + config.investment_amount
 
