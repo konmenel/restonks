@@ -74,7 +74,7 @@ class RestonksWindow:
             portfolio_table.setItem(
                 i, 3, QTableWidgetItem(f"{position['market_value']:.2f}")
             )
-            portfolio_table.setItem(i, 6, QTableWidgetItem(f"{position['weight']:.2%}"))
+            portfolio_table.setItem(i, 4, QTableWidgetItem(f"{position['weight']:.2%}"))
             portfolio_table.setItem(
                 i, 5, QTableWidgetItem(f"{position['target_weight']:.2%}")
             )
