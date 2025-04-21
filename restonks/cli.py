@@ -83,7 +83,7 @@ def main() -> int:
     parser = create_cli()
     args = parser.parse_args()
 
-    lib.config.initialise(
+    lib.config.initialise_from_files(
         api_key_file=args.api_key,
         weights_file=args.weights,
         investment_amount=args.investment_amount,
