@@ -27,6 +27,8 @@ except ImportError:  # TODO: Remove this when packaging
 # TODO: Add a button to clear everything
 # TODO: Add update weight button
 # TODO: Settings menu to set the default weights file and API keys file
+# TODO: Add Style sheet (QSS) to the application
+# TODO: Handle resizing of the window
 
 
 class Add_popup(QDialog):
