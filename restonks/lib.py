@@ -21,61 +21,102 @@ class Config:
     ValueError
         If investement amount is negative.
     """
+
     _api: TraderNetAPI
-    _weights_file: str
+    _weights: dict[str, float]
     _investment_amount: float
 
     def __init__(self) -> None:
         self._api = None
-        self._weights_file = None
+        self._weights = {}
         self._investment_amount = 0.0
 
-    def initialise(
+    def initialise_from_files(
         self, api_key_file: str, weights_file: str, investment_amount: float
     ) -> None:
         if not os.path.exists(weights_file):
             raise FileNotFoundError(
                 errno.ENOENT, os.strerror(errno.ENOENT), weights_file
             )
-
+        if not os.path.exists(api_key_file):
+            raise FileNotFoundError(
+                errno.ENOENT, os.strerror(errno.ENOENT), api_key_file
+            )
         if investment_amount < 0:
             ValueError("Investment amount cannot be negative!")
 
         self._api = TraderNetAPI.from_config(api_key_file)
-        self._weights_file = weights_file
+        self._investment_amount = investment_amount
+        self.import_weights_from_file(weights_file)
+
+    def initialise_from_dicts(
+        self,
+        api_key: dict[str, str],
+        weights: dict[str, float],
+        investment_amount: float,
+    ) -> None:
+        if not isinstance(api_key, dict):
+            raise TypeError("API key must be a dictionary!")
+        if not isinstance(weights, dict):
+            raise TypeError("Weights must be a dictionary!")
+        if investment_amount < 0:
+            raise ValueError("Investment amount cannot be negative!")
+
+        self._api = TraderNetAPI(api_key["public"], api_key["private"])
+        self._weights = weights
         self._investment_amount = investment_amount
 
     @property
-    def api(self) -> TraderNetAPI: 
+    def api(self) -> TraderNetAPI:
         """Get the API object."""
         if self._api is None:
             raise ValueError("API not initialized!")
         return self._api
-    
+
     @property
-    def weights_file(self) -> str:
-        """Get the weights file."""
-        if self._weights_file is None:
-            raise ValueError("Weights file not initialized!")
-        return self._weights_file
-    
+    def weights(self) -> dict[str, float]:
+        """Get the weights."""
+        return self._weights
+
     @property
     def investment_amount(self) -> float:
         """Get the investment amount."""
         if self._investment_amount is None:
             raise ValueError("Investment amount not initialized!")
         return self._investment_amount
-    
+
     def set_investment_amount(self, amount: float) -> None:
         """Set the investment amount."""
         if amount < 0:
             raise ValueError("Investment amount cannot be negative!")
         self._investment_amount = amount
 
+    def import_weights_from_file(self, weights_file: str) -> None:
+        """Import the weights from a file."""
+        with open(weights_file, "rb") as wfile:
+            weights = tomllib.load(wfile)
+        
+        weights = {
+            ticker["name"]: ticker["target_weight"] for ticker in weights["tickers"]
+        }
+        total_weight = sum(weights.values())
+        assert total_weight <= 1, "The sum of the weights cannot be greater than 1!"
+        self._weights = weights
+    
+    def set_weights(self, weights: dict[str, float]) -> None:
+        """Import the weights from a dictionary."""
+        if not isinstance(weights, dict):
+            raise TypeError("Weights must be a dictionary!")
+        total_weight = sum(weights.values())
+        assert total_weight <= 1, "The sum of the weights cannot be greater than 1!"
+        self._weights = weights
+        
+
 
 config = Config()
 
-def get_portfolio_evaluation(positions: dict[str, dict[str, str | float]]) -> float:
+
+def get_portfolio_evaluation(positions: list[dict[str, str | float]] | dict[str, dict[str, str | float]]) -> float:
     """Get the portfolio evaluation.
 
     Parameters
@@ -88,7 +129,13 @@ def get_portfolio_evaluation(positions: dict[str, dict[str, str | float]]) -> fl
     float
         The portfolio evaluation.
     """
-    return sum(p["market_value"] for p in positions.values())
+    if isinstance(positions, dict):
+        positions = positions.values()
+    elif not isinstance(positions, list):
+        raise TypeError("Positions must be a list or dictionary!")
+
+    return sum(p["market_value"] for p in positions)
+
 
 @cache
 def get_exchange_rate(from_curr: str, to_curr: str) -> float:
@@ -120,7 +167,7 @@ def get_exchange_rate(from_curr: str, to_curr: str) -> float:
 def filter_open_positions(
     open_positions: list[dict[str, str | float]],
 ) -> list[dict[str, str | float]]:
-    """Filter the open_position list that you get from the 
+    """Filter the open_position list that you get from the
     Freedom24 API.
 
     The new list will contain dictionaries with key:
@@ -141,7 +188,7 @@ def filter_open_positions(
     list[dict[str, str | float]]
         The filtered positions.
     """
-    portfolio_eval = sum(p["market_value"] for p in open_positions)
+    portfolio_eval = get_portfolio_evaluation(open_positions)
 
     open_pos: list[dict[str, str | float]] = []
     for pos in open_positions:
@@ -161,7 +208,7 @@ def filter_open_positions(
 
 
 def append_position(positions: list[dict[str, str | float]], ticker: str) -> None:
-    """Appends an empty position in the portfolio list. 
+    """Appends an empty position in the portfolio list.
 
     Parameters
     ----------
@@ -207,25 +254,19 @@ def get_all_positions() -> dict[str, dict[str, str | float]]:
     open_positions = config.api.account_summary()["result"]["ps"]["pos"]
     positions = filter_open_positions(open_positions)
     pos_names = [p["name"] for p in positions]
-    portfolio_eval = sum(p["market_value"] for p in positions)
+    portfolio_eval = get_portfolio_evaluation(positions)
     future_portfolio_eval = portfolio_eval + config.investment_amount
 
     # Read target weights
-    with open(config.weights_file, "rb") as wfile:
-        weights = tomllib.load(wfile)
-    weights = weights["tickers"]
-    total_weight = sum(w["target_weight"] for w in weights)
-    assert total_weight <= 1, "The sum of the weights cannot be greater than 1!"
-
-    for weight in weights:
-        if weight["name"] not in pos_names:
-            append_position(positions, weight["name"])
+    for ticker, weight in config.weights.items():
+        if ticker not in pos_names:
+            append_position(positions, ticker)
 
         for i, pos in enumerate(positions):
-            if weight["name"] in pos["name"]:
-                positions[i]["target_weight"] = weight["target_weight"]
+            if ticker in pos["name"]:
+                positions[i]["target_weight"] = weight
                 positions[i]["target_value"] = (
-                    weight["target_weight"] * future_portfolio_eval
+                    weight * future_portfolio_eval
                 )
 
     # Merge items without weights
