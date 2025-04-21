@@ -44,6 +44,9 @@
       <height>171</height>
      </rect>
     </property>
+    <property name="editTriggers">
+     <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+    </property>
     <property name="rowCount">
      <number>10</number>
     </property>
@@ -132,6 +135,9 @@
     </property>
    </widget>
    <widget class="QTableWidget" name="portfolioTable">
+    <property name="enabled">
+     <bool>true</bool>
+    </property>
     <property name="geometry">
      <rect>
       <x>10</x>
@@ -144,6 +150,9 @@
      <font>
       <pointsize>10</pointsize>
      </font>
+    </property>
+    <property name="editTriggers">
+     <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
     </property>
     <property name="showGrid">
      <bool>true</bool>
@@ -234,6 +243,9 @@
       <width>741</width>
       <height>171</height>
      </rect>
+    </property>
+    <property name="editTriggers">
+     <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
     </property>
     <property name="rowCount">
      <number>5</number>
@@ -375,7 +387,7 @@
      <string>Refresh portfolio</string>
     </property>
    </widget>
-   <widget class="QWidget" name="">
+   <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
       <x>30</x>
@@ -444,7 +456,7 @@
      <x>0</x>
      <y>0</y>
      <width>793</width>
-     <height>23</height>
+     <height>33</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
