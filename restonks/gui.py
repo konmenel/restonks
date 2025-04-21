@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (
     QComboBox,
     QMessageBox,
     QLabel,
+    QMainWindow,
+    QWidget,
 )
 from PySide6.QtCore import QFile
 
@@ -39,13 +41,9 @@ class Add_popup(QDialog):
 
         # Create widgets
         self.add_ticker = QLineEdit()
-        self.add_ticker.setPlaceholderText(
-            "Enter Ticker"
-        )  # Disappears automatically when clicked
+        self.add_ticker.setPlaceholderText("Enter Ticker")
         self.add_weight = QLineEdit()
-        self.add_weight.setPlaceholderText(
-            "Enter Weight (%)"
-        )  # Disappears automatically when clicked
+        self.add_weight.setPlaceholderText("Enter Weight (%)")
         button = QPushButton("Add position")
 
         # Add button signal to greetings slot
@@ -100,38 +98,49 @@ class RemovePopup(QDialog):
                 self.selected_ticker = None  # Reset if user cancels
 
 
-class RestonksWindow:
+class RestonksWindow(QMainWindow):
     """A class to represent the main window of the application.
     This class is responsible for loading the UI file, initializing the application,
     and handling user interactions.
     """
 
+    window: QWidget
     positions: dict[str, dict[str, str | float]]
     rebalance_orders: dict[str, dict[str, str | float]]
 
     def __init__(self):
         # Load the .ui file
-        base, _ = os.path.split(__file__)
-        ui_file_name = os.path.join(base, "ui/main.ui")
-        ui_file = QFile(ui_file_name)
-        ui_file.open(QFile.ReadOnly)
-        loader = QUiLoader()
-        self.window = loader.load(ui_file)
-        ui_file.close()
+        self.LoadUI()
 
         self.positions = {}
         self.rebalance_orders = {}
         self.is_initialized = False
-        self.window.setWindowTitle("Restonks")
+        self.ui.setWindowTitle("Restonks")
 
         # Connect button callbacks
-        self.window.addButton.clicked.connect(self.handle_add)
-        self.window.removeButton.clicked.connect(self.handle_remove)
-        self.window.refreshButton.clicked.connect(self.handle_refresh)
-        self.window.rebalanceButton.clicked.connect(self.handle_rebalance)
-        self.window.actionImportWeights.triggered.connect(self.handle_import_weights)
-        self.window.actionExportWeights.triggered.connect(self.handle_export_weights)
-        self.window.actionImportAPIKey.triggered.connect(self.handle_import_api_keys)
+        self.ui.addButton.clicked.connect(self.handle_add)
+        self.ui.removeButton.clicked.connect(self.handle_remove)
+        self.ui.refreshButton.clicked.connect(self.handle_refresh)
+        self.ui.rebalanceButton.clicked.connect(self.handle_rebalance)
+        self.ui.actionImportWeights.triggered.connect(self.handle_import_weights)
+        self.ui.actionExportWeights.triggered.connect(self.handle_export_weights)
+        self.ui.actionImportAPIKey.triggered.connect(self.handle_import_api_keys)
+
+    def LoadUI(self) -> None:
+        """Load the UI file and set up the main window."""
+        base, _ = os.path.split(__file__)
+        ui_file_name = os.path.join(base, "ui/main.ui")
+
+        ui_file = QFile(ui_file_name)
+        ui_file.open(QFile.ReadOnly)
+
+        loader = QUiLoader()
+        self.ui = loader.load(ui_file)
+        ui_file.close()
+
+    def show(self) -> None:
+        """Show the main window."""
+        self.ui.show()
 
     # TODO: Check if ticker exists using Freedom 24 API
     def handle_add(self):
@@ -143,18 +152,16 @@ class RestonksWindow:
             try:
                 weight = float(weight) / 100  # Convert to decimal
                 if ticker in lib.config.weights:
-                    self.window.statusBar().showMessage(
-                        f"Ticker {ticker} already exists."
-                    )
+                    self.ui.statusBar().showMessage(f"Ticker {ticker} already exists.")
                 lib.config.add_weight(ticker, weight)
                 self.update_weights_table()
-                self.window.statusBar().showMessage(
+                self.ui.statusBar().showMessage(
                     f"Added {ticker} with weight {weight:.2%}"
                 )
             except ValueError:
-                self.window.statusBar().showMessage(f"Invalid weight: {weight}")
+                self.ui.statusBar().showMessage(f"Invalid weight: {weight}")
             except Exception as e:
-                self.window.statusBar().showMessage(f"Error adding weight: {e}")
+                self.ui.statusBar().showMessage(f"Error adding weight: {e}")
 
     def handle_remove(self):
         popup = RemovePopup(lib.config.weights.keys())
@@ -162,7 +169,7 @@ class RestonksWindow:
             if popup.selected_ticker:  # Check if a ticker was selected
                 lib.config.remove_weight(popup.selected_ticker)
                 self.update_weights_table()
-                self.window.statusBar().showMessage(
+                self.ui.statusBar().showMessage(
                     f"Removed {popup.selected_ticker} from weights."
                 )
 
@@ -176,10 +183,10 @@ class RestonksWindow:
         portfolio_eval = lib.get_portfolio_evaluation(self.positions)
 
         # Update textbxoxes with current portfolio evaluation and future portfolio evaluation
-        self.window.curEvalAmountLabel.setText(f"${portfolio_eval:.2f}")
+        self.ui.curEvalAmountLabel.setText(f"${portfolio_eval:.2f}")
 
         # Update table with current portfolio
-        portfolio_table = self.window.portfolioTable
+        portfolio_table = self.ui.portfolioTable
         portfolio_table.setRowCount(len(self.positions))
         portfolio_table.setColumnCount(6)
         portfolio_table.setHorizontalHeaderLabels(
@@ -208,11 +215,11 @@ class RestonksWindow:
             )
 
     def handle_rebalance(self):
-        lib.config.set_investment_amount(float(self.window.amountBox.text()))
+        lib.config.set_investment_amount(float(self.ui.amountBox.text()))
         rebalance_orders, remaining_cash = lib.find_rebalancing(self.positions)
 
         # Update table with rebalancing plan
-        rebalance_table = self.window.newPortfolioTable
+        rebalance_table = self.ui.newPortfolioTable
         rebalance_table.setRowCount(len(rebalance_orders))
 
         for i, (ticker, order) in enumerate(rebalance_orders.items()):
@@ -230,13 +237,13 @@ class RestonksWindow:
             - remaining_cash
         )
 
-        self.window.newEvalAmountLabel.setText(f"${future_portfolio_eval:.2f}")
-        self.window.remainingCashAmountLabel.setText(f"${remaining_cash:.2f}")
+        self.ui.newEvalAmountLabel.setText(f"${future_portfolio_eval:.2f}")
+        self.ui.remainingCashAmountLabel.setText(f"${remaining_cash:.2f}")
 
         # Update table with current portfolio
         updated_portfolio = lib.apply_rebalancing(self.positions, rebalance_orders)
 
-        portfolio_table = self.window.portfolioTable
+        portfolio_table = self.ui.portfolioTable
         portfolio_table.setRowCount(len(updated_portfolio))
         portfolio_table.setColumnCount(9)
         portfolio_table.setHorizontalHeaderLabels(
@@ -277,43 +284,39 @@ class RestonksWindow:
     def handle_import_weights(self):
         """Handle the import of weights from a toml file."""
         file_path, _ = QFileDialog.getOpenFileName(
-            self.window, "Import Weights", "", "TOML Files (*.toml)"
+            self.ui, "Import Weights", "", "TOML Files (*.toml)"
         )
         if file_path:
             try:
                 lib.config.import_weights_from_file(file_path)
                 self.update_weights_table()
-                self.window.statusBar().showMessage(
-                    f"Imported weights from {file_path}"
-                )
+                self.ui.statusBar().showMessage(f"Imported weights from {file_path}")
             except Exception as e:
-                self.window.statusBar().showMessage(f"Error importing weights: {e}")
+                self.ui.statusBar().showMessage(f"Error importing weights: {e}")
 
     def handle_import_api_keys(self):
         """Handle the import of API keys from a toml file."""
         file_path, _ = QFileDialog.getOpenFileName(
-            self.window, "Import Freedom24 API Keys", "", "INI Files (*.ini)"
+            self.ui, "Import Freedom24 API Keys", "", "INI Files (*.ini)"
         )
         if file_path:
             try:
                 lib.config.import_api_keys_from_file(file_path)
-                self.window.statusBar().showMessage(
-                    f"Imported API keys from {file_path}"
-                )
+                self.ui.statusBar().showMessage(f"Imported API keys from {file_path}")
             except Exception as e:
-                self.window.statusBar().showMessage(f"Error importing API keys: {e}")
+                self.ui.statusBar().showMessage(f"Error importing API keys: {e}")
 
     def handle_export_weights(self):
         """Handle the export of weights to a toml file."""
         file_path, _ = QFileDialog.getSaveFileName(
-            self.window, "Export Weights TOML", "", "TOML Files (*.toml)"
+            self.ui, "Export Weights TOML", "", "TOML Files (*.toml)"
         )
         if file_path:
             try:
                 self.export_weights_to_file(file_path)
-                self.window.statusBar().showMessage(f"Exported weights to {file_path}")
+                self.ui.statusBar().showMessage(f"Exported weights to {file_path}")
             except Exception as e:
-                self.window.statusBar().showMessage(f"Error exporting weights: {e}")
+                self.ui.statusBar().showMessage(f"Error exporting weights: {e}")
 
     def export_weights_to_file(self, file_path: str) -> None:
         """Export the current weights to a TOML file."""
@@ -326,7 +329,7 @@ class RestonksWindow:
 
     def update_weights_table(self):
         """Update the weights table with the current weights."""
-        weights_table = self.window.weightsTable
+        weights_table = self.ui.weightsTable
         weights_table.setRowCount(len(lib.config.weights))
 
         for i, (ticker, weight) in enumerate(lib.config.weights.items()):
@@ -338,7 +341,7 @@ def main() -> int:
     app = QApplication(sys.argv)
 
     main_window = RestonksWindow()
-    main_window.window.show()
+    main_window.show()
 
     return app.exec()
 
