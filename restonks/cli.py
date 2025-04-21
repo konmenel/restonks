@@ -44,7 +44,6 @@ def display_results(
 ) -> None:
     # Current porfolio
     portfolio_eval = sum(p["market_value"] for p in positions.values())
-    future_portfolio_eval = portfolio_eval + lib.config.investment_amount
     portfolio_df = pd.DataFrame.from_dict(positions, orient="index")
     print("==== Portfolio ====")
     print(
@@ -55,7 +54,6 @@ def display_results(
 
     print(f"\nCurrent Evaluation: ${portfolio_eval:.2f}")
     print(f"Investment amount: ${lib.config.investment_amount:.2f}")
-    print(f"New Evaluation: ${future_portfolio_eval:.2f}")
 
     print("\n==== Rebalancing Plan ====")
     rebalance_df = pd.DataFrame.from_dict(rebalance_orders, orient="index")
@@ -66,8 +64,6 @@ def display_results(
             )
         )
 
-    print(f"\nRemaining cash: ${remaining_cash:.2f}")
-
     # Post-rebalancing portfolio summary
     print("\n==== Updated Portfolio ====")
     new_positons = lib.apply_rebalancing(positions, rebalance_orders)
@@ -77,6 +73,12 @@ def display_results(
             formatters={"weight": "{:.2%}".format, "target_weight": "{:.2%}".format}
         )
     )
+
+    future_portfolio_eval = (
+        portfolio_eval + lib.config.investment_amount - remaining_cash
+    )
+    print(f"\nNew Evaluation: ${future_portfolio_eval:.2f}")
+    print(f"Remaining cash: ${remaining_cash:.2f}")
 
 
 def main() -> int:
