@@ -45,9 +45,9 @@ class Config:
         if investment_amount < 0:
             ValueError("Investment amount cannot be negative!")
 
-        self._api = TraderNetAPI.from_config(api_key_file)
         self._investment_amount = investment_amount
         self.import_weights_from_file(weights_file)
+        self.import_api_keys_from_file(api_key_file)
 
     def initialise_from_dicts(
         self,
@@ -85,6 +85,18 @@ class Config:
             raise ValueError("Investment amount not initialized!")
         return self._investment_amount
 
+    def is_api_set(self) -> bool:
+        """Check if the API is set."""
+        return self._api is not None
+
+    def import_api_keys_from_file(self, api_key_file: str) -> None:
+        """Import the API keys from a file."""
+        if not os.path.exists(api_key_file):
+            raise FileNotFoundError(
+                errno.ENOENT, os.strerror(errno.ENOENT), api_key_file
+            )
+        self._api = TraderNetAPI.from_config(api_key_file)
+
     def set_investment_amount(self, amount: float) -> None:
         """Set the investment amount."""
         if amount < 0:
@@ -95,14 +107,14 @@ class Config:
         """Import the weights from a file."""
         with open(weights_file, "rb") as wfile:
             weights = tomllib.load(wfile)
-        
+
         weights = {
             ticker["name"]: ticker["target_weight"] for ticker in weights["tickers"]
         }
         total_weight = sum(weights.values())
         assert total_weight <= 1, "The sum of the weights cannot be greater than 1!"
         self._weights = weights
-    
+
     def set_weights(self, weights: dict[str, float]) -> None:
         """Import the weights from a dictionary."""
         if not isinstance(weights, dict):
@@ -110,13 +122,22 @@ class Config:
         total_weight = sum(weights.values())
         assert total_weight <= 1, "The sum of the weights cannot be greater than 1!"
         self._weights = weights
-        
+
+    def add_weight(self, ticker: str, weight: float) -> None:
+        """Adds or Updates a weight to the weights dictionary."""
+        if not isinstance(ticker, str):
+            raise TypeError("Ticker must be a string!")
+        if not isinstance(weight, float):
+            raise TypeError("Weight must be a float!")
+        self._weights[ticker] = weight
 
 
 config = Config()
 
 
-def get_portfolio_evaluation(positions: list[dict[str, str | float]] | dict[str, dict[str, str | float]]) -> float:
+def get_portfolio_evaluation(
+    positions: list[dict[str, str | float]] | dict[str, dict[str, str | float]],
+) -> float:
     """Get the portfolio evaluation.
 
     Parameters
@@ -234,6 +255,30 @@ def append_position(positions: list[dict[str, str | float]], ticker: str) -> Non
     )
 
 
+def get_open_positions() -> dict[str, dict[str, str | float]]:
+    """Get the open positions in the portfolio.
+
+    Returns
+    -------
+    dict[str, dict[str, str | float]]
+        The dictionary containing the open positions in the portfolio.
+        The keys are the tickers and the values are dictionaries with the
+        following keys:
+        - market_price: The price of the stock.
+        - shares: The number of shares in the portfolio.
+        - market_value: The total value of the stock in the portfolio.
+        - weight: The current weight of the stock in the portfolio.
+
+    """
+    open_positions = config.api.account_summary()["result"]["ps"]["pos"]
+    positions = filter_open_positions(open_positions)
+    positions_dict = {}
+    for pos in positions:
+        ticker = pos.pop("name")
+        positions_dict[ticker] = pos
+    return positions_dict
+
+
 def get_all_positions() -> dict[str, dict[str, str | float]]:
     """Get all the positions in the portfolio.
 
@@ -265,9 +310,7 @@ def get_all_positions() -> dict[str, dict[str, str | float]]:
         for i, pos in enumerate(positions):
             if ticker in pos["name"]:
                 positions[i]["target_weight"] = weight
-                positions[i]["target_value"] = (
-                    weight * future_portfolio_eval
-                )
+                positions[i]["target_value"] = weight * future_portfolio_eval
 
     # Merge items without weights
     index_to_remove: list[int] = []

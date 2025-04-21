@@ -48,12 +48,18 @@ class RestonksWindow:
         self.window.refreshButton.clicked.connect(self.handle_refresh)
         self.window.rebalanceButton.clicked.connect(self.handle_rebalance)
         self.window.actionImportWeights.triggered.connect(self.handle_import_weights)
-        # self.window.actionExportWeights.triggered.connect(self.handle_export_weights)
-        # self.window.actionImportAPIKeys.triggered.connect(self.handle_import_api_keys)
-        # self.window.actionExportAPIKeys.triggered.connect(self.handle_export_api_keys)
+        self.window.actionExportWeights.triggered.connect(self.handle_export_weights)
+        self.window.actionImportAPIKey.triggered.connect(self.handle_import_api_keys)
 
     # Define callbacks
     def handle_refresh(self):
+        """Handle the refresh button click event."""
+        # Check if the API keys are set
+        if not lib.config.is_api_set():
+            self.window.statusBar().showMessage(
+                "Please set the API keys in the settings menu."
+            )
+            return
         lib.config.set_investment_amount(float(self.window.amountBox.text()))
         self.positions = lib.get_all_positions()
         portfolio_eval = lib.get_portfolio_evaluation(self.positions)
@@ -80,7 +86,6 @@ class RestonksWindow:
             )
 
     def handle_rebalance(self):
-        
         rebalance_orders, remaining_cash = lib.find_rebalancing(self.positions)
 
         # Update table with rebalancing plan
@@ -96,7 +101,11 @@ class RestonksWindow:
                 i, 4, QTableWidgetItem(f"{order['new_weight']:.2%}")
             )
 
-        future_portfolio_eval = lib.get_portfolio_evaluation(self.positions)+lib.config.investment_amount -remaining_cash
+        future_portfolio_eval = (
+            lib.get_portfolio_evaluation(self.positions)
+            + lib.config.investment_amount
+            - remaining_cash
+        )
 
         self.window.newEvalAmountLabel.setText(f"${future_portfolio_eval:.2f}")
         self.window.remainingCashAmountLabel.setText(f"${remaining_cash:.2f}")
@@ -107,9 +116,49 @@ class RestonksWindow:
             self.window, "Import Weights", "", "TOML Files (*.toml)"
         )
         if file_path:
-            lib.config.import_weights_from_file(file_path)
-            self.update_weights_table()
-            self.window.statusBar().showMessage(f"Imported weights from {file_path}")
+            try:
+                lib.config.import_weights_from_file(file_path)
+                self.update_weights_table()
+                self.window.statusBar().showMessage(
+                    f"Imported weights from {file_path}"
+                )
+            except Exception as e:
+                self.window.statusBar().showMessage(f"Error importing weights: {e}")
+
+    def handle_import_api_keys(self):
+        """Handle the import of API keys from a toml file."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self.window, "Import API Keys", "", "INI Files (*.ini)"
+        )
+        if file_path:
+            try:
+                lib.config.import_api_keys_from_file(file_path)
+                self.window.statusBar().showMessage(
+                    f"Imported API keys from {file_path}"
+                )
+            except Exception as e:
+                self.window.statusBar().showMessage(f"Error importing API keys: {e}")
+
+    def handle_export_weights(self):
+        """Handle the export of weights to a toml file."""
+        file_path, _ = QFileDialog.getSaveFileName(
+            self.window, "Export Weights", "", "TOML Files (*.toml)"
+        )
+        if file_path:
+            try:
+                self.export_weights_to_file(file_path)
+                self.window.statusBar().showMessage(f"Exported weights to {file_path}")
+            except Exception as e:
+                self.window.statusBar().showMessage(f"Error exporting weights: {e}")
+
+    def export_weights_to_file(self, file_path: str) -> None:
+        """Export the current weights to a TOML file."""
+        with open(file_path, "w") as f:
+            f.write("# Weights for the portfolio\n")
+            f.write("ticker = [\n")
+            for ticker, weight in lib.config.weights.items():
+                f.write(f'    {{ name = "{ticker}", target_weight = {weight:f} }},\n')
+            f.write("]\n")
 
     def update_weights_table(self):
         """Update the weights table with the current weights."""
@@ -123,13 +172,6 @@ class RestonksWindow:
 
 def main() -> int:
     app = QApplication(sys.argv)
-
-    # TODO: needs to be independent of current weights and api key file
-    lib.config.initialise_from_files(
-        api_key_file="tradernet.ini",
-        weights_file="weights.toml",
-        investment_amount=1000,
-    )
 
     main_window = RestonksWindow()
     main_window.window.show()
