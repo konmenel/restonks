@@ -21,9 +21,12 @@ try:
 except ImportError:  # TODO: Remove this when packaging
     import lib
 
-# TODO: Add new values and weights to the table
-
+# TODO: Create configuration directory (linux: ~/.config/restonks, windows: %APPDATA%/restonks, macOS: ~/Library/Application Support/restonks)
 # TODO: Save last configuration of weights for next session
+# TODO: Save location of API keys file
+# TODO: Add a button to clear everything
+# TODO: Add update weight button
+# TODO: Settings menu to set the default weights file and API keys file
 
 
 class Add_popup(QDialog):
@@ -129,7 +132,6 @@ class RestonksWindow:
         self.window.actionImportAPIKey.triggered.connect(self.handle_import_api_keys)
 
     # TODO: Check if ticker exists using Freedom 24 API
-    # TODO: Check if weights add to 100
     def handle_add(self):
         popup = Add_popup()
         if popup.exec_() == QDialog.Accepted:  # Wait for dialog to close
