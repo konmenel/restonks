@@ -11,13 +11,8 @@ except ImportError:  # TODO: Remove this when packaging
     import lib
 
 # TODO: Add new values and weights to the table
-# TODO: Add remaining cash label
 
-# TODO: Add button to accept the API keys
-# TODO: Add export weights into different file formats
 # TODO: Save last configuration of weights for next session
-# TODO: Create second tab/dock for results
-# TODO: Pull list of securities on startup.
 
 
 class RestonksWindow:
@@ -56,11 +51,7 @@ class RestonksWindow:
         """Handle the refresh button click event."""
         # Check if the API keys are set
         if not lib.config.is_api_set():
-            self.window.statusBar().showMessage(
-                "Please set the API keys in the settings menu."
-            )
-            return
-        lib.config.set_investment_amount(float(self.window.amountBox.text()))
+            self.handle_import_api_keys()
         self.positions = lib.get_all_positions()
         portfolio_eval = lib.get_portfolio_evaluation(self.positions)
 
@@ -70,15 +61,26 @@ class RestonksWindow:
         # Update table with current portfolio
         portfolio_table = self.window.portfolioTable
         portfolio_table.setRowCount(len(self.positions))
+        portfolio_table.setColumnCount(6)
+        portfolio_table.setHorizontalHeaderLabels(
+            [
+                "Ticker",
+                "Market Price",
+                "Shares",
+                "Value",
+                "Weight",
+                "Target Weight",
+            ]
+        )
 
         for i, (ticker, position) in enumerate(self.positions.items()):
             portfolio_table.setItem(i, 0, QTableWidgetItem(ticker))
             portfolio_table.setItem(
-                i, 1, QTableWidgetItem(f"{position['market_price']:.2f}")
+                i, 1, QTableWidgetItem(f"${position['market_price']:.2f}")
             )
-            portfolio_table.setItem(i, 2, QTableWidgetItem(f"{position['shares']:d}"))
+            portfolio_table.setItem(i, 2, QTableWidgetItem(f"{position['shares']:.0f}"))
             portfolio_table.setItem(
-                i, 3, QTableWidgetItem(f"{position['market_value']:.2f}")
+                i, 3, QTableWidgetItem(f"${position['market_value']:.2f}")
             )
             portfolio_table.setItem(i, 4, QTableWidgetItem(f"{position['weight']:.2%}"))
             portfolio_table.setItem(
@@ -86,6 +88,7 @@ class RestonksWindow:
             )
 
     def handle_rebalance(self):
+        lib.config.set_investment_amount(float(self.window.amountBox.text()))
         rebalance_orders, remaining_cash = lib.find_rebalancing(self.positions)
 
         # Update table with rebalancing plan
@@ -110,6 +113,47 @@ class RestonksWindow:
         self.window.newEvalAmountLabel.setText(f"${future_portfolio_eval:.2f}")
         self.window.remainingCashAmountLabel.setText(f"${remaining_cash:.2f}")
 
+        # Update table with current portfolio
+        updated_portfolio = lib.apply_rebalancing(self.positions, rebalance_orders)
+
+        portfolio_table = self.window.portfolioTable
+        portfolio_table.setRowCount(len(updated_portfolio))
+        portfolio_table.setColumnCount(9)
+        portfolio_table.setHorizontalHeaderLabels(
+            [
+                "Ticker",
+                "Market Price",
+                "Shares",
+                "Value",
+                "Weight",
+                "New Shares",
+                "New Value",
+                "New Weight",
+                "Target Weight",
+            ]
+        )
+
+        for i, ((ticker, pos), new_pos) in enumerate(
+            zip(self.positions.items(), updated_portfolio.values())
+        ):
+            portfolio_table.setItem(i, 0, QTableWidgetItem(ticker))
+            portfolio_table.setItem(
+                i, 1, QTableWidgetItem(f"${pos['market_price']:.2f}")
+            )
+            portfolio_table.setItem(i, 2, QTableWidgetItem(f"{pos['shares']:.0f}"))
+            portfolio_table.setItem(
+                i, 3, QTableWidgetItem(f"${pos['market_value']:.2f}")
+            )
+            portfolio_table.setItem(i, 4, QTableWidgetItem(f"{pos['weight']:.2%}"))
+            portfolio_table.setItem(i, 5, QTableWidgetItem(f"{new_pos['shares']:.0f}"))
+            portfolio_table.setItem(
+                i, 6, QTableWidgetItem(f"${new_pos['market_value']:.2f}")
+            )
+            portfolio_table.setItem(i, 7, QTableWidgetItem(f"{new_pos['weight']:.2%}"))
+            portfolio_table.setItem(
+                i, 8, QTableWidgetItem(f"{pos['target_weight']:.2%}")
+            )
+
     def handle_import_weights(self):
         """Handle the import of weights from a toml file."""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -128,7 +172,7 @@ class RestonksWindow:
     def handle_import_api_keys(self):
         """Handle the import of API keys from a toml file."""
         file_path, _ = QFileDialog.getOpenFileName(
-            self.window, "Import API Keys", "", "INI Files (*.ini)"
+            self.window, "Import Freedom24 API Keys", "", "INI Files (*.ini)"
         )
         if file_path:
             try:
@@ -142,7 +186,7 @@ class RestonksWindow:
     def handle_export_weights(self):
         """Handle the export of weights to a toml file."""
         file_path, _ = QFileDialog.getSaveFileName(
-            self.window, "Export Weights", "", "TOML Files (*.toml)"
+            self.window, "Export Weights TOML", "", "TOML Files (*.toml)"
         )
         if file_path:
             try:

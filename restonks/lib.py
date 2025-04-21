@@ -228,7 +228,7 @@ def filter_open_positions(
     return open_pos
 
 
-def append_position(positions: list[dict[str, str | float]], ticker: str) -> None:
+def add_position(positions: dict[str, dict[str, str | float]], ticker: str) -> None:
     """Appends an empty position in the portfolio list.
 
     Parameters
@@ -244,15 +244,12 @@ def append_position(positions: list[dict[str, str | float]], ticker: str) -> Non
     currency = res["found"][0]["x_curr"]
     currency_convert = get_exchange_rate(currency, "USD")
 
-    positions.append(
-        {
-            "name": ticker,
-            "market_price": price * currency_convert,
-            "shares": 0,
-            "market_value": 0.0,
-            "weight": 0.0,
-        }
-    )
+    positions[ticker] = {
+        "market_price": price * currency_convert,
+        "shares": 0,
+        "market_value": 0.0,
+        "weight": 0.0,
+    }
 
 
 def get_open_positions() -> dict[str, dict[str, str | float]]:
@@ -296,52 +293,37 @@ def get_all_positions() -> dict[str, dict[str, str | float]]:
         - target_value: The target value of the stock in the portfolio.
 
     """
-    open_positions = config.api.account_summary()["result"]["ps"]["pos"]
-    positions = filter_open_positions(open_positions)
-    pos_names = [p["name"] for p in positions]
-    portfolio_eval = get_portfolio_evaluation(positions)
-    future_portfolio_eval = portfolio_eval + config.investment_amount
+    positions = get_open_positions()
 
     # Read target weights
     for ticker, weight in config.weights.items():
-        if ticker not in pos_names:
-            append_position(positions, ticker)
+        if ticker not in positions.keys():
+            add_position(positions, ticker)
 
-        for i, pos in enumerate(positions):
-            if ticker in pos["name"]:
-                positions[i]["target_weight"] = weight
-                positions[i]["target_value"] = weight * future_portfolio_eval
+        for pos_ticker, pos in positions.items():
+            if ticker in pos_ticker:
+                positions[pos_ticker]["target_weight"] = weight
 
     # Merge items without weights
-    index_to_remove: list[int] = []
-    positions.append(
-        {
-            "name": "Misc",
-            "market_price": 0.0,
-            "shares": 1,
-            "market_value": 0.0,
-            "weight": 0.0,
-            "target_weight": 0.0,
-            "target_value": 0.0,
-        }
-    )
-    for i, pos in enumerate(positions):
-        if "target_weight" not in pos:
-            index_to_remove.append(i - len(index_to_remove))  # DO NOT QUESTION!
-            positions[-1]["market_value"] += pos["market_value"]
-            positions[-1]["target_value"] += pos["market_value"]
-            positions[-1]["market_price"] += pos["market_value"]
-            positions[-1]["weight"] += pos["weight"]
-    for i in index_to_remove:
-        positions.pop(i)
+    keys_to_be_removed: list[str] = []
+    positions["Misc"] = {
+        "market_price": 0.0,
+        "shares": 1,
+        "market_value": 0.0,
+        "weight": 0.0,
+        "target_weight": 0.0,
+    }
 
-    # Sort them from furthest to target to closest from target
-    positions = sorted(positions, key=lambda x: x["market_value"] - x["target_value"])
-    positions_dict = {}
-    for pos in positions:
-        ticker = pos.pop("name")
-        positions_dict[ticker] = pos
-    return positions_dict
+    for ticker, pos in positions.items():
+        if "target_weight" not in pos:
+            keys_to_be_removed.append(ticker)
+            positions["Misc"]["market_value"] += pos["market_value"]
+            positions["Misc"]["market_price"] += pos["market_value"]
+            positions["Misc"]["weight"] += pos["weight"]
+    for k in keys_to_be_removed:
+        positions.pop(k)
+
+    return positions
 
 
 def recalculate_weights(
@@ -416,6 +398,20 @@ def find_rebalancing(
         The rebalancing plan and the remaining cash after the
         rebalancing.
     """
+    portfolio_eval = get_portfolio_evaluation(positions)
+    future_portfolio_eval = portfolio_eval + config.investment_amount
+
+    for ticker, pos in positions.items():
+        positions[ticker]["target_value"] = pos["target_weight"] * future_portfolio_eval
+
+    # Sort them from furthest to target to closest from target
+    positions = {
+        i[0]: i[1]
+        for i in sorted(
+            positions.items(), key=lambda x: x[1]["market_value"] - x[1]["target_value"]
+        )
+    }
+
     remaining_cash = config.investment_amount
     rebalance_orders = {}
     for ticker, pos in positions.items():

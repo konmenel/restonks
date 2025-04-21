@@ -138,7 +138,7 @@
      <bool>true</bool>
     </property>
     <property name="rowCount">
-     <number>5</number>
+     <number>0</number>
     </property>
     <property name="columnCount">
      <number>6</number>
@@ -149,11 +149,6 @@
     <attribute name="horizontalHeaderDefaultSectionSize">
      <number>120</number>
     </attribute>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
     <column>
      <property name="text">
       <string>Ticker</string>
@@ -186,7 +181,7 @@
     </column>
     <column>
      <property name="text">
-      <string>Current Value</string>
+      <string>Value</string>
      </property>
      <property name="font">
       <font>
@@ -196,7 +191,7 @@
     </column>
     <column>
      <property name="text">
-      <string>Current Weight</string>
+      <string>Weight</string>
      </property>
      <property name="font">
       <font>
@@ -228,7 +223,7 @@
      <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
     </property>
     <property name="rowCount">
-     <number>5</number>
+     <number>0</number>
     </property>
     <property name="columnCount">
      <number>4</number>
@@ -239,11 +234,6 @@
     <attribute name="horizontalHeaderDefaultSectionSize">
      <number>120</number>
     </attribute>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
     <column>
      <property name="text">
       <string>Ticker</string>
@@ -463,9 +453,6 @@
     <addaction name="actionImportWeights"/>
     <addaction name="actionExportWeights"/>
     <addaction name="actionImportAPIKey"/>
-    <addaction name="actionExportFreedom24APIKey"/>
-    <addaction name="separator"/>
-    <addaction name="separator"/>
    </widget>
    <addaction name="menuFile"/>
   </widget>
