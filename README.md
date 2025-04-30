@@ -8,6 +8,29 @@ The tool for rebalancing your Freedom24 portfolio.
 - Qt6
 - Pyside6
 
+## TODOs
+### Library
+- [ ] Add sell action as option.
+- [ ] Setup MYPY
+- [ ] Setup CI
+- [ ] Setup excludes. Exclude a ticker for the buy option, e.g. if exchange rate is unfavourable at the moment.
+
+### GUI
+- [ ] Create/lookup configuration directory (linux: ~/.config/restonks, windows:%APPDATA%/restonks, macOS: ~/Library/Application Support/restonks)
+- [ ] Save last configuration of weights for next session
+- [ ] Save location of API keys file
+- [ ] Add a button to clear everything
+- [ ] Add update weight button
+- [ ] Settings menu to set the default weights file and API keys file
+- [ ] Add Style sheet (QSS) to the application
+- [ ] Handle resizing of the window
+- [ ] Setup excludes in the UI
+
+### CLI
+- [ ] Lookup configuration directory (linux: ~/.config/restonks, windows:%APPDATA%/restonks, macOS: ~/Library/Application Support/restonks)
+- [ ] Sell option flag
+- [ ] Exclude options
+
 ## Installation
 ```bash
 git clone git@github.com:konmenel/restonks
