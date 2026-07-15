@@ -22,7 +22,7 @@ The tool for rebalancing your Freedom24 portfolio.
 - [ ] Add a button to clear everything
 - [ ] Add update weight button
 - [ ] Settings menu to set the default weights file and API keys file
-- [ ] Add Style sheet (QSS) to the application
+- [x] Add Style sheet (QSS) to the application
 - [ ] Handle resizing of the window
 - [ ] Setup excludes in the UI
 
@@ -51,7 +51,7 @@ The Freedom24 API key can be obtained from the [Freedom24 API documentation](htt
 The file containing the keys should be provided with the following format:
 ```ini
 [auth]
-public   =  <public-key>
+public   = <public-key>
 private  = <private-key>
 ```
 
@@ -90,3 +90,17 @@ etc..
 ```bash
 restonks-gui &
 ```
+
+### Themes
+The GUI ships with several QSS themes in `restonks/ui/`:
+
+- **DarkMidnight** *(default)* — cool slate dark theme with a blue accent
+- **DarkDracula** — the classic purple-accented Dracula palette
+- **DarkEmerald** — deep green dark theme
+- **LightArctic** — clean, cool light theme with a blue accent
+- **LightSandstone** — warm light theme with an amber accent
+- **LightMint** — fresh light theme with a teal/green accent
+
+Older themes (`Dark`, `Light`, `NordMinimalist`, `FluentGlass`) are still bundled too — delete them from `restonks/ui/` if you don't want them cluttering the picker.
+
+Use **View → Change Theme...** in the app to open the theme picker. Selecting a theme in the dropdown previews it instantly across the whole app; click **OK** to keep it (your choice is remembered for next launch) or **Cancel** to revert. Any `.qss` file dropped into `restonks/ui/` is automatically picked up — no code changes needed.

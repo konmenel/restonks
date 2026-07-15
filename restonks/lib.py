@@ -203,7 +203,7 @@ def get_exchange_rate(from_curr: str, to_curr: str) -> float:
     res = config.api.authorized_request(
         "getCrossRatesForDate",
         dict(base_currency=from_curr, currencies=[to_curr]),
-        version=1,
+        # version=2,
     )
     return res["rates"][to_curr]
 
