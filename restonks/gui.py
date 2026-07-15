@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import os
-import sys
 import tempfile
 from nicegui import ui
 
@@ -11,6 +10,12 @@ except ImportError:
     import lib
     import themes
 
+
+# TODO: Create configuration directory (linux: ~/.config/restonks, windows: %APPDATA%/restonks, macOS: ~/Library/Application Support/restonks)
+# TODO: Save last configuration of weights for next session
+# TODO: Save location of API keys file
+# TODO: Add update weight button
+# TODO: Settings menu to set the default weights file and API keys file
 
 # --- Shared style fragments -------------------------------------------------
 # Widgets reference theme colors through these CSS custom properties (see
@@ -508,9 +513,6 @@ class RestonksApp:
                         ).classes(ACTION_BUTTON)
 
         themes.apply_theme(self.current_theme, self.dark_mode)
-
-
-import threading
 
 
 def main() -> int:

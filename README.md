@@ -21,7 +21,6 @@ The tool for rebalancing your Freedom24 portfolio.
 - [ ] Add a button to clear everything
 - [ ] Add update weight button
 - [ ] Settings menu to set the default weights file and API keys file
-- [x] Add Style sheet (QSS) to the application
 - [ ] Handle resizing of the window
 - [ ] Setup excludes in the UI
 
