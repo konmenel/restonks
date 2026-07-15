@@ -75,8 +75,8 @@
      <rect>
       <x>660</x>
       <y>110</y>
-      <width>75</width>
-      <height>24</height>
+      <width>90</width>
+      <height>30</height>
      </rect>
     </property>
     <property name="text">
@@ -88,8 +88,8 @@
      <rect>
       <x>660</x>
       <y>150</y>
-      <width>75</width>
-      <height>24</height>
+      <width>90</width>
+      <height>30</height>
      </rect>
     </property>
     <property name="text">
@@ -278,10 +278,10 @@
    <widget class="QPushButton" name="rebalanceButton">
     <property name="geometry">
      <rect>
-      <x>320</x>
+      <x>300</x>
       <y>520</y>
-      <width>131</width>
-      <height>24</height>
+      <width>180</width>
+      <height>30</height>
      </rect>
     </property>
     <property name="text">
@@ -329,8 +329,8 @@
      <rect>
       <x>300</x>
       <y>240</y>
-      <width>131</width>
-      <height>24</height>
+      <width>180</width>
+      <height>30</height>
      </rect>
     </property>
     <property name="text">
@@ -443,7 +443,7 @@
      <x>0</x>
      <y>0</y>
      <width>789</width>
-     <height>33</height>
+     <height>24</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -454,7 +454,14 @@
     <addaction name="actionExportWeights"/>
     <addaction name="actionImportAPIKey"/>
    </widget>
+   <widget class="QMenu" name="menuView">
+    <property name="title">
+     <string>View</string>
+    </property>
+    <addaction name="actionChangeTheme"/>
+   </widget>
    <addaction name="menuFile"/>
+   <addaction name="menuView"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionImportWeights">
@@ -475,6 +482,11 @@
   <action name="actionExportFreedom24APIKey">
    <property name="text">
     <string>Export Freedom24 API key</string>
+   </property>
+  </action>
+  <action name="actionChangeTheme">
+   <property name="text">
+    <string>Change Theme...</string>
    </property>
   </action>
  </widget>

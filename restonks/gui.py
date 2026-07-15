@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QFileDialog,
     QDialog,
+    QDialogButtonBox,
     QLineEdit,
     QPushButton,
     QVBoxLayout,
@@ -15,7 +16,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QWidget,
 )
-from PySide6.QtCore import QFile
+from PySide6.QtCore import QFile, QSettings
 
 try:
     from . import lib
@@ -28,8 +29,18 @@ except ImportError:  # TODO: Remove this when packaging
 # TODO: Add a button to clear everything
 # TODO: Add update weight button
 # TODO: Settings menu to set the default weights file and API keys file
-# TODO: Add Style sheet (QSS) to the application
 # TODO: Handle resizing of the window
+
+# Directory that contains this file (works whether run as a script or as a
+# package module). Used to reliably locate the bundled ui/*.ui and ui/*.qss
+# files regardless of the current working directory.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+THEMES_DIR = os.path.join(BASE_DIR, "ui")
+ICONS_DIR = os.path.join(THEMES_DIR, "icons")
+DEFAULT_THEME = "DarkMidnight"
+
+SETTINGS_ORG = "restonks"
+SETTINGS_APP = "restonks-gui"
 
 
 class Add_popup(QDialog):
@@ -97,6 +108,64 @@ class RemovePopup(QDialog):
                 self.selected_ticker = None  # Reset if user cancels
 
 
+class ThemePopup(QDialog):
+    """Popup dialog that lets the user browse and preview installed
+    themes live. Selecting a theme in the dropdown applies it to the
+    whole application immediately, so the user can see it in context
+    before committing. Cancelling restores whatever theme was active
+    before the dialog was opened.
+    """
+
+    def __init__(self, app: QApplication, current_theme: str):
+        super().__init__()
+        self.app = app
+        self.original_theme = current_theme
+
+        self.setWindowTitle("Change Theme")
+        self.setMinimumWidth(320)
+        self.setGeometry(100, 100, 300, 150)
+
+        self.themes = get_available_themes()
+
+        layout = QVBoxLayout()
+        layout.addWidget(QLabel("Pick a theme to preview it instantly:"))
+
+        self.combo_box = QComboBox()
+        self.combo_box.addItems(sorted(self.themes.keys()))
+        if current_theme in self.themes:
+            self.combo_box.setCurrentText(current_theme)
+        self.combo_box.currentTextChanged.connect(self.preview_theme)
+        layout.addWidget(self.combo_box)
+
+        hint = QLabel("Click OK to keep it, or Cancel to revert.")
+        hint.setStyleSheet("font-style: italic;")
+        layout.addWidget(hint)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        self.setLayout(layout)
+
+        # Show the currently selected theme applied right away, in case
+        # the dropdown's initial selection differs from what's active.
+        if self.combo_box.count() > 0:
+            self.preview_theme(self.combo_box.currentText())
+
+    def preview_theme(self, theme_name: str) -> None:
+        if theme_name:
+            apply_theme(self.app, theme_name)
+
+    def reject(self) -> None:
+        """Restore the original theme when the dialog is cancelled."""
+        apply_theme(self.app, self.original_theme)
+        super().reject()
+
+    def selected_theme(self) -> str:
+        return self.combo_box.currentText()
+
+
 class RestonksWindow:
     """A class to represent the main window of the application.
     This class is responsible for loading the UI file, initializing the application,
@@ -107,12 +176,13 @@ class RestonksWindow:
     positions: dict[str, dict[str, str | float]]
     rebalance_orders: dict[str, dict[str, str | float]]
 
-    def __init__(self):
+    def __init__(self, current_theme: str = DEFAULT_THEME):
         # Load the .ui file
         self.LoadUI()
 
         self.positions = {}
         self.rebalance_orders = {}
+        self.current_theme = current_theme
         self.ui.setWindowTitle("Restonks")
 
         # Connect button callbacks
@@ -123,18 +193,22 @@ class RestonksWindow:
         self.ui.actionImportWeights.triggered.connect(self.handle_import_weights)
         self.ui.actionExportWeights.triggered.connect(self.handle_export_weights)
         self.ui.actionImportAPIKey.triggered.connect(self.handle_import_api_keys)
+        self.ui.actionChangeTheme.triggered.connect(self.handle_change_theme)
 
     def LoadUI(self) -> None:
         """Load the UI file and set up the main window."""
-        base, _ = os.path.split(__file__)
-        ui_file_name = os.path.join(base, "ui/main.ui")
+        ui_file_name = os.path.join(BASE_DIR, "ui", "main.ui")
 
         ui_file = QFile(ui_file_name)
-        ui_file.open(QFile.ReadOnly)
+        if not ui_file.open(QFile.ReadOnly):
+            raise RuntimeError(f"Could not open UI file: {ui_file_name}")
 
         loader = QUiLoader()
         self.ui = loader.load(ui_file)
         ui_file.close()
+
+        if self.ui is None:
+            raise RuntimeError(f"Failed to load UI from: {ui_file_name}")
 
     def show(self) -> None:
         """Show the main window."""
@@ -180,7 +254,8 @@ class RestonksWindow:
         self.positions = lib.get_all_positions()
         portfolio_eval = lib.get_portfolio_evaluation(self.positions)
 
-        # Update textbxoxes with current portfolio evaluation and future portfolio evaluation
+        # Update textbxoxes with current portfolio evaluation and future portfolio
+        # evaluation
         self.ui.curEvalAmountLabel.setText(f"${portfolio_eval:.2f}")
 
         # Update table with current portfolio
@@ -325,6 +400,23 @@ class RestonksWindow:
                 f.write(f'    {{ name = "{ticker}", target_weight = {weight:f} }},\n')
             f.write("]\n")
 
+    def handle_change_theme(self):
+        """Open the theme picker popup. Themes are previewed live as the
+        user browses; the choice is only kept (and persisted) if they
+        click OK."""
+        app = QApplication.instance()
+        popup = ThemePopup(app, self.current_theme)
+        if popup.exec() == QDialog.Accepted:
+            self.current_theme = popup.selected_theme()
+            apply_theme(app, self.current_theme)
+
+            settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+            settings.setValue("theme", self.current_theme)
+
+            self.ui.statusBar().showMessage(f"Theme changed to {self.current_theme}")
+        else:
+            self.ui.statusBar().showMessage("Theme change cancelled")
+
     def update_weights_table(self):
         """Update the weights table with the current weights."""
         weights_table = self.ui.weightsTable
@@ -335,10 +427,73 @@ class RestonksWindow:
             weights_table.setItem(i, 1, QTableWidgetItem(f"{weight:.2%}"))
 
 
+def get_available_themes() -> dict[str, str]:
+    """Scan the ui/ directory for *.qss files and return a mapping of
+    {theme_name: absolute_path}. Theme name is the file name without the
+    .qss extension, e.g. "ui/DarkMidnight.qss" -> "DarkMidnight". This
+    means dropping a new .qss file into ui/ makes it available in the
+    theme picker automatically, no code changes needed."""
+    themes: dict[str, str] = {}
+    if os.path.isdir(THEMES_DIR):
+        for fname in sorted(os.listdir(THEMES_DIR)):
+            if fname.lower().endswith(".qss"):
+                name = os.path.splitext(fname)[0]
+                themes[name] = os.path.join(THEMES_DIR, fname)
+    return themes
+
+
+def apply_theme(app: QApplication, theme: str) -> bool:
+    """Apply a QSS theme (by name, case-insensitive) to the application.
+
+    Returns True if the theme was found and applied, False otherwise. On
+    failure the previously-applied stylesheet is left untouched rather
+    than crashing, and a warning is printed.
+    """
+    themes = get_available_themes()
+    match = next(
+        (path for name, path in themes.items() if name.lower() == theme.lower()),
+        None,
+    )
+    if match is None:
+        available = ", ".join(themes) or "none found"
+        print(f"[WARNING] Unknown theme '{theme}'. Available themes: {available}")
+        return False
+
+    try:
+        with open(match, "r") as f:
+            qss = f.read()
+        # QSS url() paths for spinbox arrow icons are written as
+        # "%ICONS_DIR%/..." placeholders in the theme files, since a
+        # relative path would be resolved against the current working
+        # directory (not the theme file's location) and break depending
+        # on how/where the app is launched from. Substitute in the real
+        # absolute path here. Qt's stylesheet engine wants forward
+        # slashes even on Windows.
+        icons_path = ICONS_DIR.replace(os.sep, "/")
+        qss = qss.replace("%ICONS_DIR%", icons_path)
+        app.setStyleSheet(qss)
+        return True
+    except OSError as e:
+        print(f"[WARNING] Could not load theme '{theme}': {e}")
+        return False
+
+
 def main() -> int:
     app = QApplication(sys.argv)
 
-    main_window = RestonksWindow()
+    # Restore the last theme the user picked, falling back to the default
+    # if nothing was saved yet or the saved theme no longer exists.
+    settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+    saved_theme = settings.value("theme", DEFAULT_THEME)
+
+    available = get_available_themes()
+    if saved_theme not in available:
+        saved_theme = DEFAULT_THEME if DEFAULT_THEME in available else next(iter(available), "")
+
+    if saved_theme:
+        apply_theme(app, saved_theme)
+
+    main_window = RestonksWindow(current_theme=saved_theme)
     main_window.show()
 
     return app.exec()
