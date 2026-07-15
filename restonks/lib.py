@@ -116,6 +116,21 @@ class Config:
             raise ValueError("The sum of the weights cannot be greater than 1!")
         self._weights = weights
 
+    def export_weights_to_str(self) -> str:
+        """Serialize the current weights dictionary into a TOML-formatted string."""
+        lines = []
+        for ticker, weight in self._weights.items():
+            lines.append("[[tickers]]")
+            lines.append(f'name = "{ticker}"')
+            lines.append(f'target_weight = {weight}\n')
+        return "\n".join(lines)
+
+    def export_weights_to_file(self, weights_file: str) -> None:
+        """Export the current weights directly to a local file path."""
+        toml_content = self.export_weights_to_str()
+        with open(weights_file, "w", encoding="utf-8") as wfile:
+            wfile.write(toml_content)
+
     def set_weights(self, weights: dict[str, float]) -> None:
         """Import the weights from a dictionary."""
         if not isinstance(weights, dict):

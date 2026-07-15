@@ -1,503 +1,524 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 import os
 import sys
-from PySide6.QtUiTools import QUiLoader
-from PySide6.QtWidgets import (
-    QApplication,
-    QTableWidgetItem,
-    QFileDialog,
-    QDialog,
-    QDialogButtonBox,
-    QLineEdit,
-    QPushButton,
-    QVBoxLayout,
-    QComboBox,
-    QMessageBox,
-    QLabel,
-    QWidget,
-)
-from PySide6.QtCore import QFile, QSettings
+import tempfile
+from nicegui import ui
 
 try:
     from . import lib
-except ImportError:  # TODO: Remove this when packaging
+    from . import themes
+except ImportError:
     import lib
-
-# TODO: Create configuration directory (linux: ~/.config/restonks, windows: %APPDATA%/restonks, macOS: ~/Library/Application Support/restonks)
-# TODO: Save last configuration of weights for next session
-# TODO: Save location of API keys file
-# TODO: Add a button to clear everything
-# TODO: Add update weight button
-# TODO: Settings menu to set the default weights file and API keys file
-# TODO: Handle resizing of the window
-
-# Directory that contains this file (works whether run as a script or as a
-# package module). Used to reliably locate the bundled ui/*.ui and ui/*.qss
-# files regardless of the current working directory.
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-THEMES_DIR = os.path.join(BASE_DIR, "ui")
-ICONS_DIR = os.path.join(THEMES_DIR, "icons")
-DEFAULT_THEME = "DarkMidnight"
-
-SETTINGS_ORG = "restonks"
-SETTINGS_APP = "restonks-gui"
+    import themes
 
 
-class Add_popup(QDialog):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Add Ticker")
-        self.setGeometry(100, 100, 300, 200)
-
-        # Create widgets
-        self.add_ticker = QLineEdit()
-        self.add_ticker.setPlaceholderText("Enter Ticker")
-        self.add_weight = QLineEdit()
-        self.add_weight.setPlaceholderText("Enter Weight (%)")
-        button = QPushButton("Add position")
-
-        # Add button signal to greetings slot
-        button.clicked.connect(self.accept)
-
-        # Create layout and add widgets
-        layout = QVBoxLayout()
-        layout.addWidget(self.add_ticker)
-        layout.addWidget(self.add_weight)
-        layout.addWidget(button)
-        # Set dialog layout
-        self.setLayout(layout)
-
-    def get_values(self):
-        return (self.add_ticker.text(), self.add_weight.text())
+# --- Shared style fragments -------------------------------------------------
+# Widgets reference theme colors through these CSS custom properties (see
+# themes.py) instead of hardcoding Tailwind colors, so a single set of
+# constants here is enough to keep every card/label/input in sync with
+# whatever theme is active.
+CARD = "rounded-xl shadow-md bg-secondary"
+DIALOG_CARD = f"w-[450px] p-6 {CARD} shadow-2xl"
+SECTION_TITLE = "text-lg font-bold border-b pb-2 mb-3"
+FIELD_LABEL = "text-xs font-bold uppercase tracking-wide opacity-60"
+MUTED_TEXT = "opacity-60"
+UPLOAD_BOX = "w-full border border-dashed rounded-lg p-2 my-2"
+ACTION_BUTTON = "w-full mt-6 py-3 font-bold text-base shadow-lg transition-transform hover:scale-[1.01]"
 
 
-class RemovePopup(QDialog):
-    def __init__(self, tickers_list):
-        super().__init__()
-        self.setWindowTitle("Remove Ticker")
-        self.setGeometry(100, 100, 300, 150)
-        self.selected_ticker = None  # Stores the ticker to remove
+class RestonksApp:
+    def __init__(self) -> None:
+        """
+        Manages UI-specific state. Core engine/config values live in the
+        global `lib.config` instance.
+        """
+        self.positions: dict[str, dict[str, str | float]] = {}
+        self.rebalance_orders: dict[str, dict[str, str | float]] = {}
+        self.current_theme: str = themes.DEFAULT_THEME
+        self.dark_mode = ui.dark_mode(themes.THEMES[themes.DEFAULT_THEME].dark)
 
-        # Dropdown list (QComboBox)
-        self.combo_box = QComboBox()
-        self.combo_box.addItems(tickers_list)
+    # --- Config-editing callbacks --------------------------------------
 
-        # Remove button
-        button_remove = QPushButton("Remove Selected Ticker")
-        button_remove.clicked.connect(self.remove_ticker)
+    def update_investment_amount(self, val: float) -> None:
+        try:
+            lib.config.set_investment_amount(val if val is not None else 0.0)
+        except ValueError as e:
+            ui.notify(str(e), type="negative")
 
-        # Layout
-        layout = QVBoxLayout()
-        layout.addWidget(QLabel("Select Ticker to Remove:"))
-        layout.addWidget(self.combo_box)
-        layout.addWidget(button_remove)
-        self.setLayout(layout)
+    def add_ticker(self) -> None:
+        """Adds a new ticker row with a unique placeholder name."""
+        placeholder = "TICK"
+        counter = 1
+        while placeholder in lib.config.weights:
+            placeholder = f"TICK.{counter}"
+            counter += 1
 
-    def remove_ticker(self):
-        self.selected_ticker = self.combo_box.currentText()
-        if self.selected_ticker:
-            confirm = QMessageBox.question(
-                self,
-                "Confirm Removal",
-                f"Remove '{self.selected_ticker}'?",
-                QMessageBox.Yes | QMessageBox.No,
-            )
-            if confirm == QMessageBox.Yes:
-                self.accept()  # Close dialog with "Accepted" status
-            else:
-                self.selected_ticker = None  # Reset if user cancels
+        try:
+            lib.config.add_weight(placeholder, 0.0)
+            self.refresh_weights_grid()
+        except ValueError as e:
+            ui.notify(str(e), type="negative")
 
-
-class ThemePopup(QDialog):
-    """Popup dialog that lets the user browse and preview installed
-    themes live. Selecting a theme in the dropdown applies it to the
-    whole application immediately, so the user can see it in context
-    before committing. Cancelling restores whatever theme was active
-    before the dialog was opened.
-    """
-
-    def __init__(self, app: QApplication, current_theme: str):
-        super().__init__()
-        self.app = app
-        self.original_theme = current_theme
-
-        self.setWindowTitle("Change Theme")
-        self.setMinimumWidth(320)
-        self.setGeometry(100, 100, 300, 150)
-
-        self.themes = get_available_themes()
-
-        layout = QVBoxLayout()
-        layout.addWidget(QLabel("Pick a theme to preview it instantly:"))
-
-        self.combo_box = QComboBox()
-        self.combo_box.addItems(sorted(self.themes.keys()))
-        if current_theme in self.themes:
-            self.combo_box.setCurrentText(current_theme)
-        self.combo_box.currentTextChanged.connect(self.preview_theme)
-        layout.addWidget(self.combo_box)
-
-        hint = QLabel("Click OK to keep it, or Cancel to revert.")
-        hint.setStyleSheet("font-style: italic;")
-        layout.addWidget(hint)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-        self.setLayout(layout)
-
-        # Show the currently selected theme applied right away, in case
-        # the dropdown's initial selection differs from what's active.
-        if self.combo_box.count() > 0:
-            self.preview_theme(self.combo_box.currentText())
-
-    def preview_theme(self, theme_name: str) -> None:
-        if theme_name:
-            apply_theme(self.app, theme_name)
-
-    def reject(self) -> None:
-        """Restore the original theme when the dialog is cancelled."""
-        apply_theme(self.app, self.original_theme)
-        super().reject()
-
-    def selected_theme(self) -> str:
-        return self.combo_box.currentText()
-
-
-class RestonksWindow:
-    """A class to represent the main window of the application.
-    This class is responsible for loading the UI file, initializing the application,
-    and handling user interactions.
-    """
-
-    ui: QWidget
-    positions: dict[str, dict[str, str | float]]
-    rebalance_orders: dict[str, dict[str, str | float]]
-
-    def __init__(self, current_theme: str = DEFAULT_THEME):
-        # Load the .ui file
-        self.LoadUI()
-
-        self.positions = {}
-        self.rebalance_orders = {}
-        self.current_theme = current_theme
-        self.ui.setWindowTitle("Restonks")
-
-        # Connect button callbacks
-        self.ui.addButton.clicked.connect(self.handle_add)
-        self.ui.removeButton.clicked.connect(self.handle_remove)
-        self.ui.refreshButton.clicked.connect(self.handle_refresh)
-        self.ui.rebalanceButton.clicked.connect(self.handle_rebalance)
-        self.ui.actionImportWeights.triggered.connect(self.handle_import_weights)
-        self.ui.actionExportWeights.triggered.connect(self.handle_export_weights)
-        self.ui.actionImportAPIKey.triggered.connect(self.handle_import_api_keys)
-        self.ui.actionChangeTheme.triggered.connect(self.handle_change_theme)
-
-    def LoadUI(self) -> None:
-        """Load the UI file and set up the main window."""
-        ui_file_name = os.path.join(BASE_DIR, "ui", "main.ui")
-
-        ui_file = QFile(ui_file_name)
-        if not ui_file.open(QFile.ReadOnly):
-            raise RuntimeError(f"Could not open UI file: {ui_file_name}")
-
-        loader = QUiLoader()
-        self.ui = loader.load(ui_file)
-        ui_file.close()
-
-        if self.ui is None:
-            raise RuntimeError(f"Failed to load UI from: {ui_file_name}")
-
-    def show(self) -> None:
-        """Show the main window."""
-        self.ui.show()
-
-    # TODO: Check if ticker exists using Freedom 24 API
-    def handle_add(self):
-        popup = Add_popup()
-        if popup.exec_() == QDialog.Accepted:  # Wait for dialog to close
-            ticker, weight = popup.get_values()
-            ticker = ticker.strip().upper()  # Clean up the ticker
-            weight = weight.strip()
+    def update_ticker_name(self, old_name: str, new_name: str) -> None:
+        if not new_name or old_name == new_name:
+            return
+        current_weights = lib.config.weights.copy()
+        if old_name in current_weights:
+            weight = current_weights.pop(old_name)
+            current_weights[new_name] = weight
             try:
-                weight = float(weight) / 100  # Convert to decimal
-                if ticker in lib.config.weights:
-                    self.ui.statusBar().showMessage(f"Ticker {ticker} already exists.")
-                lib.config.add_weight(ticker, weight)
-                self.update_weights_table()
-                self.ui.statusBar().showMessage(
-                    f"Added {ticker} with weight {weight:.2%}"
-                )
-            except ValueError:
-                self.ui.statusBar().showMessage(f"Invalid weight: {weight}")
-            except Exception as e:
-                self.ui.statusBar().showMessage(f"Error adding weight: {e}")
+                lib.config.set_weights(current_weights)
+            except ValueError as e:
+                ui.notify(str(e), type="negative")
+                self.refresh_weights_grid()
 
-    def handle_remove(self):
-        popup = RemovePopup(lib.config.weights.keys())
-        if popup.exec() == QDialog.Accepted:  # Wait for user action
-            if popup.selected_ticker:  # Check if a ticker was selected
-                lib.config.remove_weight(popup.selected_ticker)
-                self.update_weights_table()
-                self.ui.statusBar().showMessage(
-                    f"Removed {popup.selected_ticker} from weights."
+    def update_ticker_weight(self, ticker: str, new_weight: float) -> None:
+        if new_weight is None:
+            return
+        current_weights = lib.config.weights.copy()
+        current_weights[ticker] = new_weight
+        try:
+            lib.config.set_weights(current_weights)
+        except ValueError as e:
+            ui.notify(str(e), type="negative")
+            self.refresh_weights_grid()  # revert on the client side
+
+    def remove_ticker(self, ticker: str) -> None:
+        try:
+            lib.config.remove_weight(ticker)
+            self.refresh_weights_grid()
+        except KeyError as e:
+            ui.notify(str(e), type="negative")
+
+    def clear_inputs(self) -> None:
+        try:
+            lib.config.set_investment_amount(0.0)
+            lib.config.set_weights({})
+            self.refresh_weights_grid()
+            ui.notify("Inputs cleared", type="info")
+        except Exception as e:
+            ui.notify(str(e), type="negative")
+
+    def set_theme(self, theme_name: str) -> None:
+        self.current_theme = theme_name
+        themes.apply_theme(theme_name, self.dark_mode)
+
+    # --- Dialogs ---------------------------------------------------------
+
+    def handle_api_config(self) -> None:
+        """Dialog to set the Freedom24 API keys, either by uploading a
+        `tradernet.ini` file or by typing them in directly."""
+        with ui.dialog() as dialog, ui.card().classes(DIALOG_CARD).props("bordered"):
+            ui.label("Freedom24 API Keys").classes(
+                "text-xl font-black text-[var(--rt-text)] mb-2"
+            )
+
+            ui.label("Drag & Drop Configuration File").classes(f"{FIELD_LABEL} mt-2")
+
+            async def handle_dropped_file(e):
+                try:
+                    with tempfile.NamedTemporaryFile(
+                        delete=False, suffix=".ini"
+                    ) as temp_file:
+                        contents = await e.file.read()
+                        temp_file.write(contents)
+                        temp_file.flush()
+                        file_path = temp_file.name
+
+                    lib.config.import_api_keys_from_file(file_path)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+
+                    ui.notify(
+                        f"Successfully imported API keys from {e.file.name}",
+                        type="positive",
+                    )
+                    dialog.close()
+                except Exception as ex:
+                    ui.notify(
+                        f"Failed to parse uploaded credentials file: {ex}",
+                        type="negative",
+                    )
+
+            ui.upload(
+                label="Drop your tradernet.ini here or click to browse",
+                auto_upload=True,
+                max_files=1,
+                on_upload=handle_dropped_file,
+            ).props("accept=.ini flat bordered").classes(UPLOAD_BOX)
+
+            with ui.row().classes("w-full items-center my-4 justify-center gap-2"):
+                ui.element("hr").classes("flex-grow border-[var(--rt-border)]")
+                ui.label("OR").classes(
+                    f"{MUTED_TEXT} text-xs font-bold tracking-widest"
+                )
+                ui.element("hr").classes("flex-grow border-[var(--rt-border)]")
+
+            ui.label("Manual Key Entry").classes(f"{FIELD_LABEL} mb-2")
+            public_input = (
+                ui.input("Public Key").classes("w-full mb-2").props("outlined dense")
+            )
+            private_input = (
+                ui.input("Private Key")
+                .classes("w-full mb-4")
+                .props("outlined dense password")
+            )
+
+            with ui.row().classes("w-full justify-end gap-2 mt-2"):
+                ui.button("Cancel", on_click=dialog.close).props("flat dense")
+
+                def save_manual_keys():
+                    if not public_input.value or not private_input.value:
+                        ui.notify(
+                            "Both Public and Private keys are required!",
+                            type="warning",
+                        )
+                        return
+                    try:
+                        lib.config.initialise_from_dicts(
+                            api_key={
+                                "public": public_input.value,
+                                "private": private_input.value,
+                            },
+                            weights=lib.config.weights,
+                            investment_amount=lib.config.investment_amount,
+                        )
+                        ui.notify("API keys initialized successfully!", type="success")
+                        dialog.close()
+                    except Exception as ex:
+                        ui.notify(f"Error setting credentials: {ex}", type="negative")
+
+                ui.button("Save Keys", on_click=save_manual_keys).props(
+                    "dense elevated color=primary"
                 )
 
-    # Define callbacks
-    def handle_refresh(self):
-        """Handle the refresh button click event."""
-        # Check if the API keys are set
+        dialog.open()
+
+    def handle_import_weights(self) -> None:
+        """Dialog to import target weights from a `weights.toml` file."""
+        with ui.dialog() as dialog, ui.card().classes(DIALOG_CARD).props("bordered"):
+            ui.label("Drag & Drop Weights File").classes(f"{FIELD_LABEL} mt-2")
+
+            async def handle_dropped_file(e):
+                try:
+                    with tempfile.NamedTemporaryFile(
+                        delete=False, suffix=".toml"
+                    ) as temp_file:
+                        contents = await e.file.read()
+                        temp_file.write(contents)
+                        temp_file.flush()
+                        file_path = temp_file.name
+
+                    lib.config.import_weights_from_file(file_path)
+                    self.refresh_weights_grid()
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+
+                    ui.notify(
+                        f"Successfully imported weights from {e.file.name}",
+                        type="positive",
+                    )
+                    dialog.close()
+                except Exception as ex:
+                    ui.notify(
+                        f"Failed to parse uploaded weights file: {ex}",
+                        type="negative",
+                    )
+
+            ui.upload(
+                label="Drop your weights.toml here or click to browse",
+                auto_upload=True,
+                max_files=1,
+                on_upload=handle_dropped_file,
+            ).props("accept=.toml flat bordered").classes(UPLOAD_BOX)
+
+        dialog.open()
+
+    # --- Actions -----------------------------------------------------------
+
+    def handle_export_weights(self) -> None:
+        try:
+            toml_bytes = lib.config.export_weights_to_str().encode("utf-8")
+            ui.download(toml_bytes, filename="weights.toml")
+            ui.notify("Weights exported successfully!", type="positive")
+        except Exception as e:
+            ui.notify(f"Failed to export weights: {e}", type="negative")
+
+    def handle_refresh_portfolio(self) -> None:
         if not lib.config.is_api_set():
-            self.handle_import_api_keys()
-        self.positions = lib.get_all_positions()
-        portfolio_eval = lib.get_portfolio_evaluation(self.positions)
-
-        # Update textbxoxes with current portfolio evaluation and future portfolio
-        # evaluation
-        self.ui.curEvalAmountLabel.setText(f"${portfolio_eval:.2f}")
-
-        # Update table with current portfolio
-        portfolio_table = self.ui.portfolioTable
-        portfolio_table.setRowCount(len(self.positions))
-        portfolio_table.setColumnCount(6)
-        portfolio_table.setHorizontalHeaderLabels(
-            [
-                "Ticker",
-                "Market Price",
-                "Shares",
-                "Value",
-                "Weight",
-                "Target Weight",
-            ]
-        )
-
-        for i, (ticker, position) in enumerate(self.positions.items()):
-            portfolio_table.setItem(i, 0, QTableWidgetItem(ticker))
-            portfolio_table.setItem(
-                i, 1, QTableWidgetItem(f"${position['market_price']:.2f}")
+            ui.notify(
+                "API keys are missing. Please configure them first.",
+                type="warning",
             )
-            portfolio_table.setItem(i, 2, QTableWidgetItem(f"{position['shares']:.0f}"))
-            portfolio_table.setItem(
-                i, 3, QTableWidgetItem(f"${position['market_value']:.2f}")
+            self.handle_api_config()
+            return
+        try:
+            self.positions = lib.get_all_positions()
+            self.render_portfolio_table.refresh()
+            ui.notify("Portfolio positions updated.", type="positive")
+        except Exception as e:
+            ui.notify(f"Failed to fetch portfolio: {e}", type="negative")
+
+    def run_rebalancer_engine(self) -> None:
+        if not self.positions:
+            ui.notify(
+                "Please fetch active portfolio positions before optimizing.",
+                type="warning",
             )
-            portfolio_table.setItem(i, 4, QTableWidgetItem(f"{position['weight']:.2%}"))
-            portfolio_table.setItem(
-                i, 5, QTableWidgetItem(f"{position['target_weight']:.2%}")
+            return
+        try:
+            orders, remaining_cash = lib.find_rebalancing(self.positions)
+            self.rebalance_orders = orders
+            self.render_orders_table.refresh()
+            ui.notify(
+                f"Rebalancing completed! Remaining cash: ${remaining_cash:.2f}",
+                type="success",
             )
+        except Exception as e:
+            ui.notify(f"Execution error: {e}", type="negative")
 
-    def handle_rebalance(self):
-        lib.config.set_investment_amount(float(self.ui.amountBox.text()))
-        rebalance_orders, remaining_cash = lib.find_rebalancing(self.positions)
+    # --- Renderers -----------------------------------------------------------
 
-        # Update table with rebalancing plan
-        rebalance_table = self.ui.newPortfolioTable
-        rebalance_table.setRowCount(len(rebalance_orders))
+    @ui.refreshable
+    def render_weights_grid(self) -> None:
+        weights_dict = lib.config.weights
 
-        for i, (ticker, order) in enumerate(rebalance_orders.items()):
-            rebalance_table.setItem(i, 0, QTableWidgetItem(ticker))
-            rebalance_table.setItem(i, 1, QTableWidgetItem(order["action"]))
-            rebalance_table.setItem(i, 2, QTableWidgetItem(f"{order['shares']:.0f}"))
-            rebalance_table.setItem(i, 3, QTableWidgetItem(f"${order['amount']:.2f}"))
-            rebalance_table.setItem(
-                i, 4, QTableWidgetItem(f"{order['new_weight']:.2%}")
+        if not weights_dict:
+            ui.label("No tickers added yet.").classes(
+                f"{MUTED_TEXT} italic py-4 text-center w-full col-span-3"
             )
+            return
 
-        future_portfolio_eval = (
-            lib.get_portfolio_evaluation(self.positions)
-            + lib.config.investment_amount
-            - remaining_cash
-        )
+        with ui.grid(columns=3).classes("w-full items-center gap-x-2 gap-y-3 mb-4"):
+            ui.label("Ticker").classes(FIELD_LABEL)
+            ui.label("Weight (Fraction)").classes(FIELD_LABEL)
+            ui.label("")
 
-        self.ui.newEvalAmountLabel.setText(f"${future_portfolio_eval:.2f}")
-        self.ui.remainingCashAmountLabel.setText(f"${remaining_cash:.2f}")
+            for ticker, weight in list(weights_dict.items()):
+                ui.input(
+                    value=ticker,
+                    on_change=lambda e, t=ticker: self.update_ticker_name(t, e.value),
+                ).props("dense outlined square").classes("text-sm font-bold")
 
-        # Update table with current portfolio
-        updated_portfolio = lib.apply_rebalancing(self.positions, rebalance_orders)
+                ui.number(
+                    value=weight,
+                    format="%.2f",
+                    step=0.05,
+                    on_change=lambda e, t=ticker: self.update_ticker_weight(t, e.value),
+                ).props("dense outlined square")
 
-        portfolio_table = self.ui.portfolioTable
-        portfolio_table.setRowCount(len(updated_portfolio))
-        portfolio_table.setColumnCount(9)
-        portfolio_table.setHorizontalHeaderLabels(
-            [
-                "Ticker",
-                "Market Price",
-                "Shares",
-                "Value",
-                "Weight",
-                "New Shares",
-                "New Value",
-                "New Weight",
-                "Target Weight",
-            ]
-        )
+                ui.button(
+                    icon="delete",
+                    color="negative",
+                    on_click=lambda t=ticker: self.remove_ticker(t),
+                ).props("flat dense")
 
-        for i, ((ticker, pos), new_pos) in enumerate(
-            zip(self.positions.items(), updated_portfolio.values())
+    def refresh_weights_grid(self) -> None:
+        self.render_weights_grid.refresh()
+
+    @staticmethod
+    def _format_currency(value: str | float) -> str:
+        return f"${value:.2f}" if isinstance(value, (int, float)) else value
+
+    @staticmethod
+    def _format_percent(value: str | float) -> str:
+        return f"{value:.1%}" if isinstance(value, (int, float)) else value
+
+    @ui.refreshable
+    def render_portfolio_table(self) -> None:
+        rows = [
+            {
+                "ticker": ticker,
+                "market_price": self._format_currency(data["market_price"]),
+                "shares": data["shares"],
+                "market_value": self._format_currency(data["market_value"]),
+                "weight": self._format_percent(data["weight"]),
+            }
+            for ticker, data in self.positions.items()
+        ]
+
+        columns = [
+            {"name": "ticker", "label": "Ticker", "field": "ticker", "align": "left"},
+            {
+                "name": "market_price",
+                "label": "Price",
+                "field": "market_price",
+                "align": "right",
+            },
+            {
+                "name": "shares",
+                "label": "Shares Owned",
+                "field": "shares",
+                "align": "right",
+            },
+            {
+                "name": "market_value",
+                "label": "Market Value",
+                "field": "market_value",
+                "align": "right",
+            },
+            {
+                "name": "weight",
+                "label": "Allocation",
+                "field": "weight",
+                "align": "right",
+            },
+        ]
+        ui.table(columns=columns, rows=rows, row_key="ticker").classes(
+            "w-full bg-transparent shadow-none"
+        ).props("flat")
+
+    @ui.refreshable
+    def render_orders_table(self) -> None:
+        rows = [
+            {
+                "ticker": ticker,
+                "action": data["action"],
+                "shares": data["shares"],
+                "amount": self._format_currency(data["amount"]),
+                "new_weight": self._format_percent(data["new_weight"]),
+            }
+            for ticker, data in self.rebalance_orders.items()
+        ]
+
+        columns = [
+            {"name": "ticker", "label": "Ticker", "field": "ticker", "align": "left"},
+            {"name": "action", "label": "Action", "field": "action", "align": "center"},
+            {
+                "name": "shares",
+                "label": "Target Shares",
+                "field": "shares",
+                "align": "right",
+            },
+            {
+                "name": "amount",
+                "label": "Total Cost",
+                "field": "amount",
+                "align": "right",
+            },
+            {
+                "name": "new_weight",
+                "label": "Projected Weight",
+                "field": "new_weight",
+                "align": "right",
+            },
+        ]
+        ui.table(columns=columns, rows=rows, row_key="ticker").classes(
+            "w-full bg-transparent shadow-none"
+        ).props("flat")
+
+    # --- Layout -----------------------------------------------------------
+
+    def build_header(self) -> None:
+        with (
+            ui.row()
+            .classes(f"w-full justify-between items-center p-4 shadow-lg {CARD}")
+            .props("bordered")
         ):
-            portfolio_table.setItem(i, 0, QTableWidgetItem(ticker))
-            portfolio_table.setItem(
-                i, 1, QTableWidgetItem(f"${pos['market_price']:.2f}")
-            )
-            portfolio_table.setItem(i, 2, QTableWidgetItem(f"{pos['shares']:.0f}"))
-            portfolio_table.setItem(
-                i, 3, QTableWidgetItem(f"${pos['market_value']:.2f}")
-            )
-            portfolio_table.setItem(i, 4, QTableWidgetItem(f"{pos['weight']:.2%}"))
-            portfolio_table.setItem(i, 5, QTableWidgetItem(f"{new_pos['shares']:.0f}"))
-            portfolio_table.setItem(
-                i, 6, QTableWidgetItem(f"${new_pos['market_value']:.2f}")
-            )
-            portfolio_table.setItem(i, 7, QTableWidgetItem(f"{new_pos['weight']:.2%}"))
-            portfolio_table.setItem(
-                i, 8, QTableWidgetItem(f"{pos['target_weight']:.2%}")
-            )
+            with ui.row().classes("items-center gap-3"):
+                ui.icon("account_balance_wallet", size="md").classes("text-primary")
+                ui.label("restonks").classes(
+                    "text-2xl font-black tracking-wide text-[var(--rt-text)]"
+                )
+                ui.label("Portfolio Rebalancer").classes(f"{MUTED_TEXT} text-sm mt-1")
 
-    def handle_import_weights(self):
-        """Handle the import of weights from a toml file."""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self.ui, "Import Weights", "", "TOML Files (*.toml)"
-        )
-        if file_path:
-            try:
-                lib.config.import_weights_from_file(file_path)
-                self.update_weights_table()
-                self.ui.statusBar().showMessage(f"Imported weights from {file_path}")
-            except Exception as e:
-                self.ui.statusBar().showMessage(f"Error importing weights: {e}")
+            ui.select(
+                themes.THEME_NAMES,
+                label="Theme",
+                value=self.current_theme,
+                on_change=lambda e: self.set_theme(e.value),
+            ).classes("w-48")
 
-    def handle_import_api_keys(self):
-        """Handle the import of API keys from a toml file."""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self.ui, "Import Freedom24 API Keys", "", "INI Files (*.ini)"
-        )
-        if file_path:
-            try:
-                lib.config.import_api_keys_from_file(file_path)
-                self.ui.statusBar().showMessage(f"Imported API keys from {file_path}")
-            except Exception as e:
-                self.ui.statusBar().showMessage(f"Error importing API keys: {e}")
+    def build_controls_ribbon(self) -> None:
+        with ui.card().classes(f"w-full p-6 shadow-md {CARD}").props("bordered"):
+            with ui.row().classes("w-full gap-6 items-center flex-wrap lg:flex-nowrap"):
+                ui.number(
+                    label="Investment Amount (USD)",
+                    value=lib.config.investment_amount,
+                    format="%.2f",
+                    step=50,
+                    on_change=lambda e: self.update_investment_amount(e.value),
+                ).classes("w-full lg:w-72 font-semibold").props("outlined dense")
 
-    def handle_export_weights(self):
-        """Handle the export of weights to a toml file."""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self.ui, "Export Weights TOML", "", "TOML Files (*.toml)"
-        )
-        if file_path:
-            try:
-                self.export_weights_to_file(file_path)
-                self.ui.statusBar().showMessage(f"Exported weights to {file_path}")
-            except Exception as e:
-                self.ui.statusBar().showMessage(f"Error exporting weights: {e}")
+                with ui.row().classes("gap-2 flex-grow justify-start lg:justify-end"):
+                    ui.button(
+                        "Import Weights",
+                        icon="file_upload",
+                        on_click=self.handle_import_weights,
+                    ).props("outline dense")
+                    ui.button(
+                        "Export Weights",
+                        icon="file_download",
+                        on_click=self.handle_export_weights,
+                    ).props("outline dense")
+                    ui.button(
+                        "API Configuration",
+                        icon="vpn_key",
+                        on_click=self.handle_api_config,
+                    ).props("outline dense")
+                    ui.button(
+                        "Clear All",
+                        icon="delete_sweep",
+                        color="negative",
+                        on_click=self.clear_inputs,
+                    ).props("flat dense")
 
-    def export_weights_to_file(self, file_path: str) -> None:
-        """Export the current weights to a TOML file."""
-        with open(file_path, "w") as f:
-            f.write("# Weights for the portfolio\n")
-            f.write("ticker = [\n")
-            for ticker, weight in lib.config.weights.items():
-                f.write(f'    {{ name = "{ticker}", target_weight = {weight:f} }},\n')
-            f.write("]\n")
+    def build_ui(self) -> None:
+        with ui.column().classes(
+            "w-full max-w-7xl mx-auto p-6 gap-6 text-[var(--rt-text)]"
+        ):
+            self.build_header()
+            self.build_controls_ribbon()
 
-    def handle_change_theme(self):
-        """Open the theme picker popup. Themes are previewed live as the
-        user browses; the choice is only kept (and persisted) if they
-        click OK."""
-        app = QApplication.instance()
-        popup = ThemePopup(app, self.current_theme)
-        if popup.exec() == QDialog.Accepted:
-            self.current_theme = popup.selected_theme()
-            apply_theme(app, self.current_theme)
+            with ui.grid().classes("grid-cols-1 lg:grid-cols-3 gap-6 w-full"):
+                with (
+                    ui.card()
+                    .classes(f"col-span-1 p-5 flex flex-column {CARD}")
+                    .props("bordered")
+                ):
+                    ui.label("Target Allocations").classes(f"{SECTION_TITLE} w-full")
+                    self.render_weights_grid()
+                    ui.button(
+                        "Add Ticker", icon="add", on_click=self.add_ticker
+                    ).classes("w-full mt-auto").props("outline dense")
 
-            settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
-            settings.setValue("theme", self.current_theme)
+                with ui.column().classes("col-span-1 lg:col-span-2 gap-6"):
+                    with ui.card().classes(f"w-full p-5 {CARD}").props("bordered"):
+                        ui.label("Current Portfolio State").classes(SECTION_TITLE)
+                        self.render_portfolio_table()
+                        ui.button(
+                            "Refresh Portfolio",
+                            icon="refresh",
+                            on_click=self.handle_refresh_portfolio,
+                        ).classes(ACTION_BUTTON)
 
-            self.ui.statusBar().showMessage(f"Theme changed to {self.current_theme}")
-        else:
-            self.ui.statusBar().showMessage("Theme change cancelled")
+                    with (
+                        ui.card()
+                        .classes(f"w-full p-5 flex-grow {CARD}")
+                        .props("bordered")
+                    ):
+                        ui.label("Calculated Rebalancing Actions").classes(
+                            f"{SECTION_TITLE} text-[var(--rt-highlight)]"
+                        )
+                        self.render_orders_table()
+                        ui.button(
+                            "Calculate Rebalancing Plan",
+                            icon="analytics",
+                            on_click=self.run_rebalancer_engine,
+                        ).classes(ACTION_BUTTON)
 
-    def update_weights_table(self):
-        """Update the weights table with the current weights."""
-        weights_table = self.ui.weightsTable
-        weights_table.setRowCount(len(lib.config.weights))
-
-        for i, (ticker, weight) in enumerate(lib.config.weights.items()):
-            weights_table.setItem(i, 0, QTableWidgetItem(ticker))
-            weights_table.setItem(i, 1, QTableWidgetItem(f"{weight:.2%}"))
-
-
-def get_available_themes() -> dict[str, str]:
-    """Scan the ui/ directory for *.qss files and return a mapping of
-    {theme_name: absolute_path}. Theme name is the file name without the
-    .qss extension, e.g. "ui/DarkMidnight.qss" -> "DarkMidnight". This
-    means dropping a new .qss file into ui/ makes it available in the
-    theme picker automatically, no code changes needed."""
-    themes: dict[str, str] = {}
-    if os.path.isdir(THEMES_DIR):
-        for fname in sorted(os.listdir(THEMES_DIR)):
-            if fname.lower().endswith(".qss"):
-                name = os.path.splitext(fname)[0]
-                themes[name] = os.path.join(THEMES_DIR, fname)
-    return themes
+        themes.apply_theme(self.current_theme, self.dark_mode)
 
 
-def apply_theme(app: QApplication, theme: str) -> bool:
-    """Apply a QSS theme (by name, case-insensitive) to the application.
-
-    Returns True if the theme was found and applied, False otherwise. On
-    failure the previously-applied stylesheet is left untouched rather
-    than crashing, and a warning is printed.
-    """
-    themes = get_available_themes()
-    match = next(
-        (path for name, path in themes.items() if name.lower() == theme.lower()),
-        None,
-    )
-    if match is None:
-        available = ", ".join(themes) or "none found"
-        print(f"[WARNING] Unknown theme '{theme}'. Available themes: {available}")
-        return False
-
-    try:
-        with open(match, "r") as f:
-            qss = f.read()
-        # QSS url() paths for spinbox arrow icons are written as
-        # "%ICONS_DIR%/..." placeholders in the theme files, since a
-        # relative path would be resolved against the current working
-        # directory (not the theme file's location) and break depending
-        # on how/where the app is launched from. Substitute in the real
-        # absolute path here. Qt's stylesheet engine wants forward
-        # slashes even on Windows.
-        icons_path = ICONS_DIR.replace(os.sep, "/")
-        qss = qss.replace("%ICONS_DIR%", icons_path)
-        app.setStyleSheet(qss)
-        return True
-    except OSError as e:
-        print(f"[WARNING] Could not load theme '{theme}': {e}")
-        return False
+import threading
 
 
 def main() -> int:
-    app = QApplication(sys.argv)
-
-    # Restore the last theme the user picked, falling back to the default
-    # if nothing was saved yet or the saved theme no longer exists.
-    settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
-    saved_theme = settings.value("theme", DEFAULT_THEME)
-
-    available = get_available_themes()
-    if saved_theme not in available:
-        saved_theme = DEFAULT_THEME if DEFAULT_THEME in available else next(iter(available), "")
-
-    if saved_theme:
-        apply_theme(app, saved_theme)
-
-    main_window = RestonksWindow(current_theme=saved_theme)
-    main_window.show()
-
-    return app.exec()
+    app = RestonksApp()
+    app.build_ui()
+    ui.run(title="restonks - Portfolio Manager", reload=__name__ == "__main__")
+    return 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+if __name__ in {"__main__", "__mp_main__"}:
+    main()
