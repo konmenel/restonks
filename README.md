@@ -3,10 +3,9 @@ The tool for rebalancing your Freedom24 portfolio.
 
 ## Dependencies
 - pandas
-- tradenet-sdk
-- Fredom24 API key
-- Qt6
-- Pyside6
+- tradernet-sdk
+- nicegui
+- Freedom24 API key
 
 ## TODOs
 ### Library
@@ -92,7 +91,7 @@ restonks-gui &
 ```
 
 ### Themes
-The GUI ships with several QSS themes in `restonks/ui/`:
+The GUI ships with six built-in themes, defined in `restonks/themes.py`:
 
 - **DarkMidnight** *(default)* — cool slate dark theme with a blue accent
 - **DarkDracula** — the classic purple-accented Dracula palette
@@ -101,6 +100,4 @@ The GUI ships with several QSS themes in `restonks/ui/`:
 - **LightSandstone** — warm light theme with an amber accent
 - **LightMint** — fresh light theme with a teal/green accent
 
-Older themes (`Dark`, `Light`, `NordMinimalist`, `FluentGlass`) are still bundled too — delete them from `restonks/ui/` if you don't want them cluttering the picker.
-
-Use **View → Change Theme...** in the app to open the theme picker. Selecting a theme in the dropdown previews it instantly across the whole app; click **OK** to keep it (your choice is remembered for next launch) or **Cancel** to revert. Any `.qss` file dropped into `restonks/ui/` is automatically picked up — no code changes needed.
+Use the **Theme** dropdown in the top-right of the app to switch instantly. To add your own, add a `Theme(...)` entry to the `THEMES` dict in `restonks/themes.py` — no other code needs to change.
