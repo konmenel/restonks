@@ -160,6 +160,7 @@ class RestonksApp:
                         f"Successfully imported API keys from {e.file.name}",
                         type="positive",
                     )
+                    lib.config.save(save_api=self.save_api, save_weights=False)
                     dialog.close()
                 except Exception as ex:
                     ui.notify(
@@ -219,6 +220,7 @@ class RestonksApp:
                             investment_amount=lib.config.investment_amount,
                         )
                         ui.notify("API keys initialized successfully!", type="success")
+                        lib.config.save(save_api=self.save_api, save_weights=False)
                         dialog.close()
                     except Exception as ex:
                         ui.notify(f"Error setting credentials: {ex}", type="negative")
@@ -271,9 +273,16 @@ class RestonksApp:
 
     # --- Actions -----------------------------------------------------------
 
+    def handle_save_config(self) -> None:
+        """Saves configuration for next section in keyring and configuration
+        directory.
+        """
+        lib.config.save(self.save_api)
+        self.save_theme_config()
+
     def handle_shutdown(self) -> None:
         """Shutdowns the application."""
-        lib.config.save(self.save_api)
+        self.handle_save_config()
         app.shutdown()
 
     def handle_export_weights(self) -> None:
@@ -509,7 +518,7 @@ class RestonksApp:
                 ui.button(
                     icon="power_settings_new",
                     color="negative",
-                    on_click=app.shutdown,
+                    on_click=self.handle_shutdown,
                 ).props("flat dense")
 
     def build_controls_ribbon(self) -> None:
@@ -543,9 +552,14 @@ class RestonksApp:
                         on_click=self.handle_export_weights,
                     ).props("outline dense")
                     ui.button(
-                        "API Configuration",
+                        "API Keys",
                         icon="vpn_key",
                         on_click=self.handle_api_config,
+                    ).props("outline dense")
+                    ui.button(
+                        "Save Config",
+                        icon="save",
+                        on_click=self.handle_save_config,
                     ).props("outline dense")
                     ui.button(
                         "Clear All",
@@ -583,7 +597,6 @@ class RestonksApp:
                             on_click=self.handle_refresh_portfolio,
                         ).classes(ACTION_BUTTON)
                         self.render_summary()
-
 
                     with ui.card().classes(f"w-full p-5 {CARD}").props("bordered"):
                         ui.label("Calculated Rebalancing Actions").classes(
