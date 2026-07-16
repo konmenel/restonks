@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import os
 import tempfile
-from nicegui import ui
+from nicegui import ui, app
 
 try:
     from . import lib
@@ -11,12 +11,6 @@ except ImportError:
     import themes
 
 
-# TODO: Create configuration directory (linux: ~/.config/restonks, windows: %APPDATA%/restonks, macOS: ~/Library/Application Support/restonks)
-# TODO: Save last configuration of weights for next session
-# TODO: Save location of API keys file
-# TODO: Add update weight button
-# TODO: Settings menu to set the default weights file and API keys file
-
 # --- Shared style fragments -------------------------------------------------
 # Widgets reference theme colors through these CSS custom properties (see
 # themes.py) instead of hardcoding Tailwind colors, so a single set of
@@ -24,7 +18,7 @@ except ImportError:
 # whatever theme is active.
 CARD = "rounded-xl shadow-md bg-secondary"
 DIALOG_CARD = f"w-[450px] p-6 {CARD} shadow-2xl"
-SECTION_TITLE = "text-lg font-bold border-b pb-2 mb-3"
+SECTION_TITLE = "text-lg font-bold border-b pb-2 mb-3 w-full"
 FIELD_LABEL = "text-xs font-bold uppercase tracking-wide opacity-60"
 MUTED_TEXT = "opacity-60"
 UPLOAD_BOX = "w-full border border-dashed rounded-lg p-2 my-2"
@@ -39,14 +33,19 @@ class RestonksApp:
         """
         self.positions: dict[str, dict[str, str | float]] = {}
         self.rebalance_orders: dict[str, dict[str, str | float]] = {}
+        self.remaining_cash: float | None = None
         self.current_theme: str = themes.DEFAULT_THEME
         self.dark_mode = ui.dark_mode(themes.THEMES[themes.DEFAULT_THEME].dark)
+        self.save_api = False
+
+        self.load_theme_config()
 
     # --- Config-editing callbacks --------------------------------------
 
-    def update_investment_amount(self, val: float) -> None:
+    def update_investment_amount(self, currency: str, val: float) -> None:
         try:
-            lib.config.set_investment_amount(val if val is not None else 0.0)
+            lib.config.set_investment_amount(val if val is not None else 0.0, currency)
+            self.render_summary.refresh()
         except ValueError as e:
             ui.notify(str(e), type="negative")
 
@@ -107,6 +106,31 @@ class RestonksApp:
     def set_theme(self, theme_name: str) -> None:
         self.current_theme = theme_name
         themes.apply_theme(theme_name, self.dark_mode)
+        self.save_theme_config()
+
+    def set_save_api(self, value: bool) -> bool:
+        self.save_api = value
+        return self.save_api
+
+    def save_theme_config(self) -> None:
+        config_dir = lib.config.get_config_dir()
+
+        if not config_dir.exists():
+            os.makedirs(config_dir)
+
+        with open(config_dir / "gui-theme", "w") as themefile:
+            themefile.write(f"{self.current_theme}\n")
+
+    def load_theme_config(self) -> None:
+        config_dir = lib.config.get_config_dir()
+        theme_filename = config_dir / "gui-theme"
+
+        if theme_filename.exists() and theme_filename.is_file():
+            with open(theme_filename, "r") as themefile:
+                theme = themefile.readline().strip()
+                self.current_theme = theme
+
+        self.set_theme(self.current_theme)
 
     # --- Dialogs ---------------------------------------------------------
 
@@ -114,9 +138,7 @@ class RestonksApp:
         """Dialog to set the Freedom24 API keys, either by uploading a
         `tradernet.ini` file or by typing them in directly."""
         with ui.dialog() as dialog, ui.card().classes(DIALOG_CARD).props("bordered"):
-            ui.label("Freedom24 API Keys").classes(
-                "text-xl font-black text-[var(--rt-text)] mb-2"
-            )
+            ui.label("Freedom24 API Keys").classes("text-xl font-black mb-2")
 
             ui.label("Drag & Drop Configuration File").classes(f"{FIELD_LABEL} mt-2")
 
@@ -153,11 +175,11 @@ class RestonksApp:
             ).props("accept=.ini flat bordered").classes(UPLOAD_BOX)
 
             with ui.row().classes("w-full items-center my-4 justify-center gap-2"):
-                ui.element("hr").classes("flex-grow border-[var(--rt-border)]")
+                ui.element("hr").classes("flex-grow")
                 ui.label("OR").classes(
                     f"{MUTED_TEXT} text-xs font-bold tracking-widest"
                 )
-                ui.element("hr").classes("flex-grow border-[var(--rt-border)]")
+                ui.element("hr").classes("flex-grow")
 
             ui.label("Manual Key Entry").classes(f"{FIELD_LABEL} mb-2")
             public_input = (
@@ -169,8 +191,16 @@ class RestonksApp:
                 .props("outlined dense password")
             )
 
+            ui.checkbox(
+                "Save Keys",
+                value=self.save_api,
+                on_change=lambda e: self.set_save_api(e.value),
+            )
+
             with ui.row().classes("w-full justify-end gap-2 mt-2"):
-                ui.button("Cancel", on_click=dialog.close).props("flat dense")
+                ui.button("Cancel", color="negative", on_click=dialog.close).props(
+                    "flat dense"
+                )
 
                 def save_manual_keys():
                     if not public_input.value or not private_input.value:
@@ -241,7 +271,13 @@ class RestonksApp:
 
     # --- Actions -----------------------------------------------------------
 
+    def handle_shutdown(self) -> None:
+        """Shutdowns the application."""
+        lib.config.save(self.save_api)
+        app.shutdown()
+
     def handle_export_weights(self) -> None:
+        """Export weight to file."""
         try:
             toml_bytes = lib.config.export_weights_to_str().encode("utf-8")
             ui.download(toml_bytes, filename="weights.toml")
@@ -250,6 +286,7 @@ class RestonksApp:
             ui.notify(f"Failed to export weights: {e}", type="negative")
 
     def handle_refresh_portfolio(self) -> None:
+        """Refreshes the portfolio position from Freedom24."""
         if not lib.config.is_api_set():
             ui.notify(
                 "API keys are missing. Please configure them first.",
@@ -259,7 +296,10 @@ class RestonksApp:
             return
         try:
             self.positions = lib.get_all_positions()
+            self.remaining_cash = None
+            self.rebalance_orders = {}
             self.render_portfolio_table.refresh()
+            self.render_summary()
             ui.notify("Portfolio positions updated.", type="positive")
         except Exception as e:
             ui.notify(f"Failed to fetch portfolio: {e}", type="negative")
@@ -274,7 +314,9 @@ class RestonksApp:
         try:
             orders, remaining_cash = lib.find_rebalancing(self.positions)
             self.rebalance_orders = orders
+            self.remaining_cash = remaining_cash
             self.render_orders_table.refresh()
+            self.render_summary.refresh()
             ui.notify(
                 f"Rebalancing completed! Remaining cash: ${remaining_cash:.2f}",
                 type="success",
@@ -364,7 +406,7 @@ class RestonksApp:
             },
             {
                 "name": "weight",
-                "label": "Allocation",
+                "label": "Fraction",
                 "field": "weight",
                 "align": "right",
             },
@@ -403,7 +445,7 @@ class RestonksApp:
             },
             {
                 "name": "new_weight",
-                "label": "Projected Weight",
+                "label": "Projected Fraction",
                 "field": "new_weight",
                 "align": "right",
             },
@@ -411,6 +453,37 @@ class RestonksApp:
         ui.table(columns=columns, rows=rows, row_key="ticker").classes(
             "w-full bg-transparent shadow-none"
         ).props("flat")
+
+    @ui.refreshable
+    def render_summary(self) -> None:
+        current_eval = (
+            lib.get_portfolio_evaluation(self.positions) if self.positions else 0.0
+        )
+
+        try:
+            investment = lib.config.investment_amount
+        except Exception:
+            investment = 0.0
+
+        if self.remaining_cash is None:
+            new_eval_text = "—"
+            remaining_cash_text = "—"
+        else:
+            new_eval = current_eval + investment - self.remaining_cash
+            new_eval_text = f"${new_eval:,.2f}"
+            remaining_cash_text = f"${self.remaining_cash:,.2f}"
+
+        stats = [
+            ("Current Evaluation", f"${current_eval:,.2f}"),
+            ("Investment (USD equiv.)", f"${investment:,.2f}"),
+            ("Projected Evaluation", new_eval_text),
+            ("Remaining Cash", remaining_cash_text),
+        ]
+        with ui.grid(columns=4).classes("w-full gap-4"):
+            for label, value in stats:
+                with ui.column().classes("gap-1"):
+                    ui.label(label).classes(FIELD_LABEL)
+                    ui.label(value).classes("text-xl font-bold")
 
     # --- Layout -----------------------------------------------------------
 
@@ -422,28 +495,41 @@ class RestonksApp:
         ):
             with ui.row().classes("items-center gap-3"):
                 ui.icon("account_balance_wallet", size="md").classes("text-primary")
-                ui.label("restonks").classes(
-                    "text-2xl font-black tracking-wide text-[var(--rt-text)]"
-                )
+                ui.label("restonks").classes("text-2xl font-black tracking-wide")
                 ui.label("Portfolio Rebalancer").classes(f"{MUTED_TEXT} text-sm mt-1")
 
-            ui.select(
-                themes.THEME_NAMES,
-                label="Theme",
-                value=self.current_theme,
-                on_change=lambda e: self.set_theme(e.value),
-            ).classes("w-48")
+            with ui.row().classes("items-center"):
+                ui.select(
+                    themes.THEME_NAMES,
+                    label="Theme",
+                    value=self.current_theme,
+                    on_change=lambda e: self.set_theme(e.value),
+                ).classes("w-48")
+
+                ui.button(
+                    icon="power_settings_new",
+                    color="negative",
+                    on_click=app.shutdown,
+                ).props("flat dense")
 
     def build_controls_ribbon(self) -> None:
         with ui.card().classes(f"w-full p-6 shadow-md {CARD}").props("bordered"):
             with ui.row().classes("w-full gap-6 items-center flex-wrap lg:flex-nowrap"):
                 ui.number(
-                    label="Investment Amount (USD)",
-                    value=lib.config.investment_amount,
+                    label="Investment (USD)",
+                    value=lib.config.investment_amounts.get("USD", 0.0),
                     format="%.2f",
                     step=50,
-                    on_change=lambda e: self.update_investment_amount(e.value),
-                ).classes("w-full lg:w-72 font-semibold").props("outlined dense")
+                    on_change=lambda e: self.update_investment_amount("USD", e.value),
+                ).classes("w-40 font-semibold").props("outlined dense")
+
+                ui.number(
+                    label="Investment (EUR)",
+                    value=lib.config.investment_amounts.get("EUR", 0.0),
+                    format="%.2f",
+                    step=50,
+                    on_change=lambda e: self.update_investment_amount("EUR", e.value),
+                ).classes("w-40 font-semibold").props("outlined dense")
 
                 with ui.row().classes("gap-2 flex-grow justify-start lg:justify-end"):
                     ui.button(
@@ -469,23 +555,23 @@ class RestonksApp:
                     ).props("flat dense")
 
     def build_ui(self) -> None:
-        with ui.column().classes(
-            "w-full max-w-7xl mx-auto p-6 gap-6 text-[var(--rt-text)]"
-        ):
+        with ui.column().classes("w-full max-w-7xl mx-auto p-6 gap-6"):
             self.build_header()
             self.build_controls_ribbon()
 
-            with ui.grid().classes("grid-cols-1 lg:grid-cols-3 gap-6 w-full"):
+            with ui.grid().classes(
+                "grid-cols-1 lg:grid-cols-3 gap-6 w-full items-start"
+            ):
                 with (
                     ui.card()
-                    .classes(f"col-span-1 p-5 flex flex-column {CARD}")
+                    .classes(f"col-span-1 p-5 flex flex-col {CARD}")
                     .props("bordered")
                 ):
-                    ui.label("Target Allocations").classes(f"{SECTION_TITLE} w-full")
+                    ui.label("Target Allocations").classes(f"{SECTION_TITLE}")
                     self.render_weights_grid()
                     ui.button(
                         "Add Ticker", icon="add", on_click=self.add_ticker
-                    ).classes("w-full mt-auto").props("outline dense")
+                    ).classes("w-full mt-6").props("outline dense")
 
                 with ui.column().classes("col-span-1 lg:col-span-2 gap-6"):
                     with ui.card().classes(f"w-full p-5 {CARD}").props("bordered"):
@@ -497,13 +583,9 @@ class RestonksApp:
                             on_click=self.handle_refresh_portfolio,
                         ).classes(ACTION_BUTTON)
 
-                    with (
-                        ui.card()
-                        .classes(f"w-full p-5 flex-grow {CARD}")
-                        .props("bordered")
-                    ):
+                    with ui.card().classes(f"w-full p-5 {CARD}").props("bordered"):
                         ui.label("Calculated Rebalancing Actions").classes(
-                            f"{SECTION_TITLE} text-[var(--rt-highlight)]"
+                            f"{SECTION_TITLE}"
                         )
                         self.render_orders_table()
                         ui.button(
@@ -516,8 +598,10 @@ class RestonksApp:
 
 
 def main() -> int:
-    app = RestonksApp()
-    app.build_ui()
+    lib.config.load()
+    restonks_app = RestonksApp()
+    app.on_shutdown(restonks_app.handle_shutdown)
+    restonks_app.build_ui()
     ui.run(title="restonks - Portfolio Manager", reload=__name__ == "__main__")
     return 0
 

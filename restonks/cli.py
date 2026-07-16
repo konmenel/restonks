@@ -21,7 +21,7 @@ def create_cli() -> ArgumentParser:
         "--weights",
         type=str,
         help="The TOML file with the target weights. Default: 'weights.toml'",
-        default="weights.toml",
+        # default="weights.toml",
     )
     parser.add_argument(
         "-k",
@@ -31,7 +31,13 @@ def create_cli() -> ArgumentParser:
             "The INI file with the private and public keys for the Freedom24 API."
             " Default: 'tradernet.ini"
         ),
-        default="tradernet.ini",
+        # default="tradernet.ini",
+    )
+    parser.add_argument(
+        "-s",
+        "--save",
+        action="store_true",
+        help=f"Saves configuration for next session in '{lib.config.get_config_dir()}'",
     )
 
     return parser
@@ -85,17 +91,26 @@ def main() -> int:
     parser = create_cli()
     args = parser.parse_args()
 
-    lib.config.initialise_from_files(
-        api_key_file=args.api_key,
-        weights_file=args.weights,
-        investment_amount=args.investment_amount,
-    )
+    lib.config.load()
+    lib.config.set_investment_amount(args.investment_amount)
+    if args.api_key and args.weights:
+        lib.config.initialise_from_files(
+            api_key_file=args.api_key,
+            weights_file=args.weights,
+            investment_amount=args.investment_amount,
+        )
+    elif args.api_key:
+        lib.config.import_api_keys_from_file(args.api_key)
+    elif args.weights:
+        lib.config.import_weights_from_file(args.weights)
 
     positions = lib.get_all_positions()
     rebalance_orders, remaining_cash = lib.find_rebalancing(positions)
 
     display_results(positions, rebalance_orders, remaining_cash)
 
+    if args.save:
+        lib.config.save()
     return 0
 
 
