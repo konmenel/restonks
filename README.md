@@ -5,6 +5,7 @@ The tool for rebalancing your Freedom24 portfolio.
 - pandas
 - tradernet-sdk
 - nicegui
+- keyring
 - Freedom24 API key
 
 ## TODOs
