@@ -299,7 +299,7 @@ class RestonksApp:
             self.remaining_cash = None
             self.rebalance_orders = {}
             self.render_portfolio_table.refresh()
-            self.render_summary()
+            self.render_summary.refresh()
             ui.notify("Portfolio positions updated.", type="positive")
         except Exception as e:
             ui.notify(f"Failed to fetch portfolio: {e}", type="negative")
@@ -582,6 +582,8 @@ class RestonksApp:
                             icon="refresh",
                             on_click=self.handle_refresh_portfolio,
                         ).classes(ACTION_BUTTON)
+                        self.render_summary()
+
 
                     with ui.card().classes(f"w-full p-5 {CARD}").props("bordered"):
                         ui.label("Calculated Rebalancing Actions").classes(
