@@ -16,17 +16,15 @@ The tool for rebalancing your Freedom24 portfolio.
 - [ ] Setup excludes. Exclude a ticker for the buy option, e.g. if exchange rate is unfavourable at the moment.
 
 ### GUI
-- [ ] Create/lookup configuration directory (linux: ~/.config/restonks, windows:%APPDATA%/restonks, macOS: ~/Library/Application Support/restonks)
-- [ ] Save last configuration of weights for next session
-- [ ] Save location of API keys file
-- [ ] Add a button to clear everything
-- [ ] Add update weight button
-- [ ] Settings menu to set the default weights file and API keys file
-- [ ] Handle resizing of the window
+- [x] Create/lookup configuration directory (linux: ~/.config/restonks, windows:%APPDATA%/restonks, macOS: ~/Library/Application Support/restonks)
+- [x] Save last configuration of weights for next session
+- [x] Save API keys using keyring
+- [x] Add a button to clear everything
+- [x] Add feature to update weights
 - [ ] Setup excludes in the UI
 
 ### CLI
-- [ ] Lookup configuration directory (linux: ~/.config/restonks, windows:%APPDATA%/restonks, macOS: ~/Library/Application Support/restonks)
+- [x] Lookup configuration directory (linux: ~/.config/restonks, windows:%APPDATA%/restonks, macOS: ~/Library/Application Support/restonks)
 - [ ] Sell option flag
 - [ ] Exclude options
 
