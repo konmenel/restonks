@@ -133,13 +133,13 @@ class Config:
             if public and private:
                 self._api = Tradernet(public, private)
 
-    def save(self, save_api: bool = True) -> None:
+    def save(self, save_api: bool = True, save_weights=True) -> None:
         """Saves configuration to configuration directory and keyring"""
         config_dir = self.get_config_dir()
         if not config_dir.exists():
             os.makedirs(config_dir, exist_ok=True)
 
-        if self.weights:
+        if save_weights and self.weights:
             weights_file = config_dir / "weights.toml"
             self.export_weights_to_file(weights_file)
 
