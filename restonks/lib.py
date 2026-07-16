@@ -1,7 +1,10 @@
 import os
 import errno
 import tomllib
-from tradernet import TraderNetAPI
+import platform
+import keyring as kr
+from pathlib import Path
+from tradernet import Tradernet
 from functools import cache
 from copy import deepcopy
 
@@ -22,14 +25,14 @@ class Config:
         If investement amount is negative.
     """
 
-    _api: TraderNetAPI
+    _api: Tradernet
     _weights: dict[str, float]
-    _investment_amount: float
+    _investment_amounts: dict[str, float]
 
     def __init__(self) -> None:
         self._api = None
         self._weights = {}
-        self._investment_amount = 0.0
+        self._investment_amounts = {"EUR": 0.0, "USD": 0.0}
 
     def initialise_from_files(
         self, api_key_file: str, weights_file: str, investment_amount: float
@@ -45,7 +48,7 @@ class Config:
         if investment_amount < 0:
             ValueError("Investment amount cannot be negative!")
 
-        self._investment_amount = investment_amount
+        self._investment_amounts["USD"] = investment_amount
         self.import_weights_from_file(weights_file)
         self.import_api_keys_from_file(api_key_file)
 
@@ -62,12 +65,12 @@ class Config:
         if investment_amount < 0:
             raise ValueError("Investment amount cannot be negative!")
 
-        self._api = TraderNetAPI(api_key["public"], api_key["private"])
+        self._api = Tradernet(api_key["public"], api_key["private"])
         self._weights = weights
-        self._investment_amount = investment_amount
+        self._investment_amounts["USD"] = investment_amount
 
     @property
-    def api(self) -> TraderNetAPI:
+    def api(self) -> Tradernet:
         """Get the API object."""
         if self._api is None:
             raise ValueError("API not initialized!")
@@ -79,11 +82,70 @@ class Config:
         return self._weights
 
     @property
+    def investment_amounts(self) -> dict[str, float]:
+        """Get the investment amount for each currency, e.g. {"USD": 500.0, "EUR": 200.0}."""
+        return self._investment_amounts
+
+    @property
     def investment_amount(self) -> float:
-        """Get the investment amount."""
-        if self._investment_amount is None:
-            raise ValueError("Investment amount not initialized!")
-        return self._investment_amount
+        """Get the investment amount in USD."""
+        if not self._investment_amounts:
+            return 0.0
+
+        total = 0.0
+        for currency, amount in self._investment_amounts.items():
+            if amount <= 0.0:
+                continue
+            total += amount * get_exchange_rate(currency, "USD")
+        return total
+
+    def get_config_dir(self) -> Path:
+        """Returns the configuration directory:
+        - Linux: "$HOME/.config/restonks",
+        - Windows: "%APPDATA%/restonks",
+        - MacOS: "$HOME/Library/Application Support/restonks"
+        """
+        match platform.system():
+            case "Linux":
+                return Path(os.environ["HOME"], ".config", "restonks")
+            case "Darwin":
+                return Path(
+                    os.environ["HOME"], "Library", "Application Support", "restonks"
+                )
+            case "Windows":
+                return Path(os.environ["APPDATA"], "restonks")
+            case _:
+                raise Exception(f"Unsupported OS: {platform.system()}")
+
+    def load(self) -> None:
+        """Loads configuration from configuration directory and keyring"""
+        config_dir = self.get_config_dir()
+        if not config_dir.exists():
+            return
+
+        weights_file = config_dir / "weights.toml"
+        if not self.weights and weights_file.exists() and weights_file.is_file():
+            self.import_weights_from_file(weights_file)
+
+        if not self.is_api_set():
+            private = kr.get_password("tradernet", "private")
+            public = kr.get_password("tradernet", "public")
+            if public and private:
+                self._api = Tradernet(public, private)
+
+    def save(self, save_api: bool = True) -> None:
+        """Saves configuration to configuration directory and keyring"""
+        config_dir = self.get_config_dir()
+        if not config_dir.exists():
+            os.makedirs(config_dir, exist_ok=True)
+
+        if self.weights:
+            weights_file = config_dir / "weights.toml"
+            self.export_weights_to_file(weights_file)
+
+        if save_api and self.is_api_set():
+            kr.set_password("tradernet", "public", self.api.public)
+            kr.set_password("tradernet", "private", self.api._private)
 
     def is_api_set(self) -> bool:
         """Check if the API is set."""
@@ -95,13 +157,13 @@ class Config:
             raise FileNotFoundError(
                 errno.ENOENT, os.strerror(errno.ENOENT), api_key_file
             )
-        self._api = TraderNetAPI.from_config(api_key_file)
+        self._api = Tradernet.from_config(api_key_file)
 
-    def set_investment_amount(self, amount: float) -> None:
+    def set_investment_amount(self, amount: float, currency: str = "USD") -> None:
         """Set the investment amount."""
         if amount < 0:
             raise ValueError("Investment amount cannot be negative!")
-        self._investment_amount = amount
+        self._investment_amounts[currency] = amount
 
     def import_weights_from_file(self, weights_file: str) -> None:
         """Import the weights from a file."""
@@ -122,7 +184,7 @@ class Config:
         for ticker, weight in self._weights.items():
             lines.append("[[tickers]]")
             lines.append(f'name = "{ticker}"')
-            lines.append(f'target_weight = {weight}\n')
+            lines.append(f"target_weight = {weight}\n")
         return "\n".join(lines)
 
     def export_weights_to_file(self, weights_file: str) -> None:
@@ -159,7 +221,7 @@ class Config:
             raise ValueError("The sum of the weights cannot be greater than 1!")
 
         self._weights[ticker] = weight
-    
+
     def remove_weight(self, ticker: str) -> None:
         """Removes a weight from the weights dictionary."""
         if not isinstance(ticker, str):
