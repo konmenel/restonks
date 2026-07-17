@@ -1,11 +1,12 @@
 import os
+import time
 import errno
 import tomllib
 import platform
 import keyring as kr
 from pathlib import Path
 from tradernet import Tradernet
-from functools import cache
+from functools import wraps
 from copy import deepcopy
 
 
@@ -147,6 +148,11 @@ class Config:
             kr.set_password("tradernet", "public", self.api.public)
             kr.set_password("tradernet", "private", self.api._private)
 
+    def set_api_keys(self, public: str, private: str) -> None:
+        """Set the Freedom24 API keys directly, without touching the
+        current weights or investment amounts."""
+        self._api = Tradernet(public, private)
+
     def is_api_set(self) -> bool:
         """Check if the API is set."""
         return self._api is not None
@@ -258,7 +264,36 @@ def get_portfolio_evaluation(
     return sum(p["market_value"] for p in positions)
 
 
-@cache
+def ttl_cache(ttl_seconds: float):
+    """A minimal memoizing decorator whose entries expire after
+    `ttl_seconds`, unlike `functools.cache` which caches forever.
+
+    Kept dependency-free (no `cachetools`) since this is the only place
+    that needs TTL behavior. Swap in `cachetools.cached(TTLCache(...))`
+    instead if more caches like this end up being needed.
+    """
+
+    def decorator(func):
+        _cache: dict[tuple, tuple[float, object]] = {}
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            key = (args, tuple(sorted(kwargs.items())))
+            now = time.monotonic()
+            cached = _cache.get(key)
+            if cached is not None and now - cached[0] < ttl_seconds:
+                return cached[1]
+            value = func(*args, **kwargs)
+            _cache[key] = (now, value)
+            return value
+
+        wrapper.cache_clear = _cache.clear
+        return wrapper
+
+    return decorator
+
+
+@ttl_cache(ttl_seconds=1 * 60)
 def get_exchange_rate(from_curr: str, to_curr: str) -> float:
     """Get the current exchange between two currencies.
 
@@ -309,7 +344,6 @@ def filter_open_positions(
     list[dict[str, str | float]]
         The filtered positions.
     """
-    portfolio_eval = get_portfolio_evaluation(open_positions)
 
     open_pos: list[dict[str, str | float]] = []
     for pos in open_positions:
@@ -318,13 +352,19 @@ def filter_open_positions(
             "market_price": pos["mkt_price"],
             "shares": pos["q"],
             "market_value": pos["market_value"],
-            "weight": pos["market_value"] / portfolio_eval,
+            "currency": pos["curr"],
         }
         if pos["curr"] != "USD":
             currency_convert = get_exchange_rate(pos["curr"], "USD")
             new_pos["market_price"] *= currency_convert
             new_pos["market_value"] *= currency_convert
+        
+        
         open_pos.append(new_pos)
+    
+    portfolio_eval = get_portfolio_evaluation(open_pos)
+    for pos in open_pos:
+        pos["weight"] = pos["market_value"] / portfolio_eval
     return open_pos
 
 
@@ -349,6 +389,7 @@ def add_position(positions: dict[str, dict[str, str | float]], ticker: str) -> N
         "shares": 0,
         "market_value": 0.0,
         "weight": 0.0,
+        "currency": currency,
     }
 
 
@@ -412,6 +453,7 @@ def get_all_positions() -> dict[str, dict[str, str | float]]:
         "market_value": 0.0,
         "weight": 0.0,
         "target_weight": 0.0,
+        "currency": "USD",
     }
 
     for ticker, pos in positions.items():
@@ -563,3 +605,92 @@ def find_rebalancing(
             positions[ticker]["market_value"] + action["amount"]
         ) / new_portfolio_eval
     return rebalance_orders, remaining_cash
+
+
+def get_currency_conversions(
+    positions: dict[str, dict[str, str | float]],
+    rebalance_orders: dict[str, dict[str, str | float]],
+) -> list[dict[str, str | float]]:
+    """Figures out which currency conversions you actually need to make.
+
+    Compares how much of each currency the rebalancing plan requires
+    against how much you entered as your investment amount in that same
+    currency. Any shortfall has to come from converting another
+    currency - e.g. if the plan needs $500 more USD than you put in,
+    and you entered EUR, this reports "convert some EUR to USD".
+
+    Any currency needed that isn't one of your investment currencies at
+    all (e.g. a GBP-denominated ticker when you only invested USD/EUR)
+    is assumed to be funded by converting from USD, since that's the
+    currency all internal calculations are done in.
+
+    Parameters
+    ----------
+    positions : dict[str, dict[str, str | float]]
+        The current positions, each including a "currency" key.
+    rebalance_orders : dict[str, dict[str, str | float]]
+        The rebalancing plan, as returned by `find_rebalancing`.
+
+    Returns
+    -------
+    list[dict[str, str | float]]
+        One entry per required conversion:
+        `{"from_currency": "EUR", "to_currency": "USD", "from_amount": 450.0, "to_amount": 500.0}`.
+    """
+    needs = get_currency_needs(positions, rebalance_orders)
+    available = config.investment_amounts
+
+    conversions = []
+    for currency, amounts in needs.items():
+        have_native = available.get(currency, 0.0)
+        shortfall_native = amounts["native_amount"] - have_native
+        if shortfall_native <= 0.01:
+            continue
+
+        source_currency = "EUR" if currency == "USD" else "USD"
+        source_amount = shortfall_native * get_exchange_rate(currency, source_currency)
+        conversions.append(
+            {
+                "from_currency": source_currency,
+                "to_currency": currency,
+                "from_amount": source_amount,
+                "to_amount": shortfall_native,
+            }
+        )
+    return conversions
+
+
+def get_currency_needs(
+    positions: dict[str, dict[str, str | float]],
+    rebalance_orders: dict[str, dict[str, str | float]],
+) -> dict[str, dict[str, float]]:
+    """Approximates how much of each native currency needs to be bought
+    to execute the rebalancing plan.
+
+    Every `rebalance_orders["amount"]` is already expressed in USD (since
+    positions are normalized to USD internally), so this converts each
+    order back into the ticker's actual trading currency using the
+    current exchange rate - the amount you'd really need to have
+    available to place that order.
+
+    Parameters
+    ----------
+    positions : dict[str, dict[str, str | float]]
+        The current positions, each including a "currency" key.
+    rebalance_orders : dict[str, dict[str, str | float]]
+        The rebalancing plan, as returned by `find_rebalancing`.
+
+    Returns
+    -------
+    dict[str, dict[str, float]]
+        Mapping of currency code to `{"native_amount": ..., "usd_amount": ...}`,
+        e.g. `{"GBP": {"native_amount": 950.32, "usd_amount": 1200.0}}`.
+    """
+    needs: dict[str, dict[str, float]] = {}
+    for ticker, order in rebalance_orders.items():
+        currency = positions.get(ticker, {}).get("currency", "USD")
+        rate = get_exchange_rate("USD", currency)
+        entry = needs.setdefault(currency, {"native_amount": 0.0, "usd_amount": 0.0})
+        entry["native_amount"] += order["amount"] * rate
+        entry["usd_amount"] += order["amount"]
+    return needs
