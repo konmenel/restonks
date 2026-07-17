@@ -21,10 +21,12 @@ The tool for rebalancing your Freedom24 portfolio.
 - [x] Save API keys using keyring
 - [x] Add a button to clear everything
 - [x] Add feature to update weights
+- [x] Add needed currency exchange actions
 - [ ] Setup excludes in the UI
 
 ### CLI
 - [x] Lookup configuration directory (linux: ~/.config/restonks, windows:%APPDATA%/restonks, macOS: ~/Library/Application Support/restonks)
+- [ ] Add needed currency exchange actions
 - [ ] Sell option flag
 - [ ] Exclude options
 
