@@ -100,7 +100,12 @@ class RestonksApp:
             for currency in list(lib.config.investment_amounts.keys()):
                 lib.config.set_investment_amount(0.0, currency)
             lib.config.set_weights({})
+            self.positions = {}
+            self.rebalance_orders = {}
             self.refresh_weights_grid()
+            self.render_portfolio_table.refresh()
+            self.render_currency_needs.refresh()
+            self.render_orders_table.refresh()
             self.render_summary.refresh()
             ui.notify("Inputs cleared", type="info")
         except Exception as e:
