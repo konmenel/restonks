@@ -1,10 +1,9 @@
 """Color themes for the restonks GUI.
 
-Each `Theme` is just a set of colors. Widgets never hardcode colors -
-they use Tailwind's arbitrary-value syntax to point at CSS custom
-properties instead, e.g. `bg-[var(--rt-surface)]`. Switching themes then
-only means updating those custom properties (see `apply_theme`); no
-widget code needs to change.
+Each `Theme` maps directly onto Quasar's own color/dark-mode system via
+`apply_theme` (`ui.dark_mode` + `ui.colors`), so switching themes doesn't
+require any custom CSS, Quasar's native components (cards, tables,
+inputs) already re-theme themselves.
 """
 
 from dataclasses import dataclass
