@@ -83,6 +83,7 @@ class RestonksApp:
         current_weights[ticker] = new_weight
         try:
             lib.config.set_weights(current_weights)
+            lib.config.save(save_api=False, save_weights=True)
         except ValueError as e:
             ui.notify(str(e), type="negative")
             self.refresh_weights_grid()  # revert on the client side
@@ -96,9 +97,11 @@ class RestonksApp:
 
     def clear_inputs(self) -> None:
         try:
-            lib.config.set_investment_amount(0.0)
+            for currency in list(lib.config.investment_amounts.keys()):
+                lib.config.set_investment_amount(0.0, currency)
             lib.config.set_weights({})
             self.refresh_weights_grid()
+            self.render_summary.refresh()
             ui.notify("Inputs cleared", type="info")
         except Exception as e:
             ui.notify(str(e), type="negative")
@@ -211,14 +214,7 @@ class RestonksApp:
                         )
                         return
                     try:
-                        lib.config.initialise_from_dicts(
-                            api_key={
-                                "public": public_input.value,
-                                "private": private_input.value,
-                            },
-                            weights=lib.config.weights,
-                            investment_amount=lib.config.investment_amount,
-                        )
+                        lib.config.set_api_keys(public_input.value, private_input.value)
                         ui.notify("API keys initialized successfully!", type="success")
                         lib.config.save(save_api=self.save_api, save_weights=False)
                         dialog.close()
@@ -308,6 +304,8 @@ class RestonksApp:
             self.remaining_cash = None
             self.rebalance_orders = {}
             self.render_portfolio_table.refresh()
+            self.render_orders_table.refresh()
+            self.render_currency_needs.refresh()
             self.render_summary.refresh()
             ui.notify("Portfolio positions updated.", type="positive")
         except Exception as e:
@@ -325,6 +323,8 @@ class RestonksApp:
             self.rebalance_orders = orders
             self.remaining_cash = remaining_cash
             self.render_orders_table.refresh()
+            self.render_portfolio_table.refresh()
+            self.render_currency_needs.refresh()
             self.render_summary.refresh()
             ui.notify(
                 f"Rebalancing completed! Remaining cash: ${remaining_cash:.2f}",
@@ -345,36 +345,40 @@ class RestonksApp:
             )
             return
 
-        with ui.grid(columns=3).classes("w-full items-center gap-x-2 gap-y-3 mb-4"):
-            ui.label("Ticker").classes(FIELD_LABEL)
-            ui.label("Weight (Fraction)").classes(FIELD_LABEL)
-            ui.label("")
+        with ui.grid(columns=5).classes("w-full items-center gap-x-2 gap-y-3 mb-4"):
+            ui.label("Ticker").classes(f"{FIELD_LABEL} col-span-2")
+            ui.label("Weight (Fraction)").classes(f"{FIELD_LABEL} col-span-2")
+            ui.label("").classes("col-span-1")
 
             for ticker, weight in list(weights_dict.items()):
                 ui.input(
                     value=ticker,
                     on_change=lambda e, t=ticker: self.update_ticker_name(t, e.value),
-                ).props("dense outlined square").classes("text-sm font-bold")
+                ).props("dense outlined square").classes("col-span-2 text-sm font-bold")
 
                 ui.number(
-                    value=weight,
-                    format="%.2f",
-                    step=0.05,
-                    on_change=lambda e, t=ticker: self.update_ticker_weight(t, e.value),
-                ).props("dense outlined square")
+                    value=weight * 100,
+                    format="%g",
+                    precision=3,
+                    suffix="%",
+                    step=1,
+                    on_change=lambda e, t=ticker: self.update_ticker_weight(
+                        t, e.value / 100
+                    ),
+                ).props("dense outlined square").classes("col-span-2")
 
                 ui.button(
                     icon="delete",
                     color="negative",
                     on_click=lambda t=ticker: self.remove_ticker(t),
-                ).props("flat dense")
+                ).props("flat dense").classes("col-span-1 w-8 min-w-0 px-0")
 
     def refresh_weights_grid(self) -> None:
         self.render_weights_grid.refresh()
 
     @staticmethod
     def _format_currency(value: str | float) -> str:
-        return f"${value:.2f}" if isinstance(value, (int, float)) else value
+        return f"${value:,.2f}" if isinstance(value, (int, float)) else value
 
     @staticmethod
     def _format_percent(value: str | float) -> str:
@@ -382,16 +386,38 @@ class RestonksApp:
 
     @ui.refreshable
     def render_portfolio_table(self) -> None:
-        rows = [
-            {
+        has_projection = bool(self.rebalance_orders) and self.remaining_cash is not None
+        projected: dict[str, dict[str, str | float]] = {}
+        if has_projection:
+            try:
+                projected = lib.apply_rebalancing(self.positions, self.rebalance_orders)
+            except Exception:
+                has_projection = False
+
+        rows = []
+        for ticker, data in self.positions.items():
+            target_weight = lib.config.weights.get(ticker)
+            if ticker == "Misc":
+                target_weight = 1 - sum(lib.config.weights.values())
+            row = {
                 "ticker": ticker,
                 "market_price": self._format_currency(data["market_price"]),
                 "shares": data["shares"],
                 "market_value": self._format_currency(data["market_value"]),
                 "weight": self._format_percent(data["weight"]),
+                "target_weight": self._format_percent(target_weight),
             }
-            for ticker, data in self.positions.items()
-        ]
+            if has_projection and ticker in projected:
+                row["proj_shares"] = projected[ticker]["shares"]
+                row["proj_market_value"] = self._format_currency(
+                    projected[ticker]["market_value"]
+                )
+                row["proj_weight"] = self._format_percent(projected[ticker]["weight"])
+            else:
+                row["proj_shares"] = "—"
+                row["proj_market_value"] = "—"
+                row["proj_weight"] = "—"
+            rows.append(row)
 
         columns = [
             {"name": "ticker", "label": "Ticker", "field": "ticker", "align": "left"},
@@ -408,15 +434,39 @@ class RestonksApp:
                 "align": "right",
             },
             {
+                "name": "proj_shares",
+                "label": "Proj. Shares",
+                "field": "proj_shares",
+                "align": "right",
+            },
+            {
                 "name": "market_value",
                 "label": "Market Value",
                 "field": "market_value",
                 "align": "right",
             },
             {
+                "name": "proj_market_value",
+                "label": "Proj. Value",
+                "field": "proj_market_value",
+                "align": "right",
+            },
+            {
                 "name": "weight",
                 "label": "Fraction",
                 "field": "weight",
+                "align": "right",
+            },
+            {
+                "name": "proj_weight",
+                "label": "Proj. Fraction",
+                "field": "proj_weight",
+                "align": "right",
+            },
+            {
+                "name": "target_weight",
+                "label": "Target Fraction",
+                "field": "target_weight",
                 "align": "right",
             },
         ]
@@ -475,8 +525,8 @@ class RestonksApp:
             investment = 0.0
 
         if self.remaining_cash is None:
-            new_eval_text = "—"
-            remaining_cash_text = "—"
+            new_eval_text = "-"
+            remaining_cash_text = "-"
         else:
             new_eval = current_eval + investment - self.remaining_cash
             new_eval_text = f"${new_eval:,.2f}"
@@ -493,6 +543,44 @@ class RestonksApp:
                 with ui.column().classes("gap-1"):
                     ui.label(label).classes(FIELD_LABEL)
                     ui.label(value).classes("text-xl font-bold")
+
+    @ui.refreshable
+    def render_currency_needs(self) -> None:
+        if not self.rebalance_orders:
+            ui.label("Calculate a rebalancing plan to see currency needs.").classes(
+                f"{MUTED_TEXT} italic py-2"
+            )
+            return
+
+        try:
+            conversions = lib.get_currency_conversions(
+                self.positions, self.rebalance_orders
+            )
+        except Exception as e:
+            ui.label(f"Could not compute exchange needs: {e}").classes(
+                f"{MUTED_TEXT} italic py-2"
+            )
+            return
+
+        if not conversions:
+            ui.label(
+                "No currency conversion needed. Your investment amounts already "
+                "cover what the plan requires in each currency."
+            ).classes(f"{MUTED_TEXT} italic py-2")
+            return
+
+        with ui.column().classes("w-full gap-2"):
+            for c in conversions:
+                with ui.row().classes("items-center gap-2"):
+                    ui.icon("currency_exchange").classes("text-primary")
+                    ui.label(
+                        f"Convert {c['from_amount']:,.2f} {c['from_currency']} "
+                        f"→ {c['to_amount']:,.2f} {c['to_currency']}"
+                    ).classes("text-base")
+
+        ui.label(
+            "Approximate based on the exchange rate at the time the plan was calculated."
+        ).classes(f"{MUTED_TEXT} text-xs italic mt-2")
 
     # --- Layout -----------------------------------------------------------
 
@@ -574,23 +662,24 @@ class RestonksApp:
             self.build_controls_ribbon()
 
             with ui.grid().classes(
-                "grid-cols-1 lg:grid-cols-3 gap-6 w-full items-start"
+                "grid-cols-1 lg:grid-cols-4 gap-6 w-full items-start"
             ):
                 with (
                     ui.card()
                     .classes(f"col-span-1 p-5 flex flex-col {CARD}")
                     .props("bordered")
                 ):
-                    ui.label("Target Allocations").classes(f"{SECTION_TITLE}")
+                    ui.label("Target Fractions").classes(f"{SECTION_TITLE}")
                     self.render_weights_grid()
                     ui.button(
                         "Add Ticker", icon="add", on_click=self.add_ticker
                     ).classes("w-full mt-6").props("outline dense")
 
-                with ui.column().classes("col-span-1 lg:col-span-2 gap-6"):
+                with ui.column().classes("col-span-1 lg:col-span-3 gap-6"):
                     with ui.card().classes(f"w-full p-5 {CARD}").props("bordered"):
-                        ui.label("Current Portfolio State").classes(SECTION_TITLE)
-                        self.render_portfolio_table()
+                        ui.label("Current Portfolio").classes(SECTION_TITLE)
+                        with ui.element("div").classes("w-full overflow-x-auto"):
+                            self.render_portfolio_table()
                         ui.button(
                             "Refresh Portfolio",
                             icon="refresh",
@@ -599,7 +688,7 @@ class RestonksApp:
                         self.render_summary()
 
                     with ui.card().classes(f"w-full p-5 {CARD}").props("bordered"):
-                        ui.label("Calculated Rebalancing Actions").classes(
+                        ui.label("Calculated Rebalancing Orders").classes(
                             f"{SECTION_TITLE}"
                         )
                         self.render_orders_table()
@@ -608,6 +697,10 @@ class RestonksApp:
                             icon="analytics",
                             on_click=self.run_rebalancer_engine,
                         ).classes(ACTION_BUTTON)
+
+                    with ui.card().classes(f"w-full p-5 {CARD}").props("bordered"):
+                        ui.label("Currency Exchanges Needed").classes(SECTION_TITLE)
+                        self.render_currency_needs()
 
         themes.apply_theme(self.current_theme, self.dark_mode)
 
