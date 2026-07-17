@@ -1,0 +1,13 @@
+name: restonks
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python==3.13.*
+  - pip>=24.0
+  - setuptools>=70.0
+  - pandas>=3.0,<4.0
+  - nicegui>=3.14,<4.0
+  - keyring>=25.0
+  - pip:
+    - tradernet-sdk==2.1.*
