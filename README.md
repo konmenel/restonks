@@ -87,7 +87,7 @@ etc..
 
 ## GUI 
 ```bash
-restonks-gui &
+restonks-gui
 ```
 
 ### Themes
