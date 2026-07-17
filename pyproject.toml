@@ -4,17 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "restonks"
-version = "0.1.0"
+version = "0.1"
 requires-python = ">=3.11"
-dependencies = ["pandas", "tradernet-sdk", "nicegui", "keyring"]
-authors = [{ name = "Constantinos Menelaou", email = "konmenel@gmail.com" }]
+dependencies = [
+  "pandas",
+  "tradernet-sdk"
+]
+authors = [
+  {name = "Constantinos Menelaou", email = "konmenel@gmail.com"},
+]
 readme = "README.md"
-description = "The tool for rebalancing your Freedom24 portfolio."
+description  = "The tool for rebalancing your Freedom24 portfolio."
 license-files = ["LICEN[CS]E*"]
 
-[tool.setuptools]
-include-package-data = true
-script-files = ["bin/restonks-gui"]
-
 [project.scripts]
-restonks = "restonks.cli:main"
+restonks = "main:main"
