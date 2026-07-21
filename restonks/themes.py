@@ -90,3 +90,4 @@ def apply_theme(theme_name: str, dark_mode: ui.dark_mode) -> None:
         accent=theme.accent,
         dark=theme.background,
     )
+    ui.query("body").style(f"background-color: {theme.background}")

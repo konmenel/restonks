@@ -713,7 +713,6 @@ class RestonksApp:
 def main() -> int:
     lib.config.load()
     restonks_app = RestonksApp()
-    app.on_shutdown(restonks_app.handle_shutdown)
     restonks_app.build_ui()
     ui.run(title="restonks - Portfolio Manager", reload=__name__ == "__main__")
     return 0
